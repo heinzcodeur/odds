@@ -70,7 +70,7 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
   const [resultFilter, setResultFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [marketFilter, setMarketFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('matches-today');
   const [specificDate, setSpecificDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -94,7 +94,10 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
   const from = dateFilter === 'range' ? startDate : singleDate;
   const to = dateFilter === 'range' ? endDate : singleDate;
   const invalidRange = Boolean(from && to && from > to);
+  const matchDates = new Map(matches.map((match) => [match.id, match.matchDate]));
   const filteredBets = bets.filter((bet) => {
+    if (dateFilter === 'matches-today'
+      && (matchDates.get(bet.matchId) || bet.matchDate) !== localDateKey(today)) return false;
     if (!matchesHistoryPeriod(bet, from, to)) return false;
     const matchesTeamOrMatch = historyFilter === 'all'
       || (historyFilter.startsWith('team:') && teamsForBet(bet, matches).includes(historyFilter.slice(5)))
@@ -115,13 +118,14 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
   return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl"><div className="flex flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-base font-semibold text-slate-200 flex items-center gap-2"><History className="w-5 h-5 text-emerald-400" />Historique des Positions Fermées</h3><div className="flex flex-wrap items-center gap-2"><select aria-label="Filtrer par résultat" value={resultFilter} onChange={(event) => setResultFilter(event.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Tous les résultats</option><option value="lost">Perdus</option><option value="won">Gagnés</option></select><select aria-label="Filtrer par type de pari" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Tous les types</option><option value="BACK">Back · Pour</option><option value="LAY">Lay · Contre</option></select><select aria-label="Filtrer par marché" value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className="max-w-48 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Tous les marchés</option>{markets.map((market) => <option key={market} value={market}>{market}</option>)}</select><select aria-label="Filtrer l’historique par équipe ou match" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value)} className="max-w-48 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Toutes les équipes et matchs</option><optgroup label="Équipes">{teams.map((team) => <option key={`team:${team}`} value={`team:${team}`}>{team}</option>)}</optgroup><optgroup label="Matchs">{matches.map((match) => <option key={`match:${match.id}`} value={`match:${match.id}`}>{match.homeTeam} vs {match.awayTeam}{match.matchDate ? ` · ${match.matchDate}` : ''}</option>)}</optgroup></select><select aria-label="Trier l’historique" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="recent">Plus récents</option><option value="oldest">Plus anciens</option><option value="lowest-pnl">P&amp;L croissant</option><option value="highest-pnl">P&amp;L décroissant</option></select>{bets.length > 0 && <button onClick={onClear} className="text-xs text-slate-500 hover:text-rose-400 transition">Effacer Historique</button>}</div></div>
     <div className="mb-4 flex flex-wrap items-end gap-3">
       <label className="text-xs text-slate-400">
-        Date de coupure
+        Période
         <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 block rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-200">
+          <option value="matches-today">Matchs du jour</option>
           <option value="all">Toutes les dates</option>
-          <option value="today">Aujourd’hui</option>
-          <option value="yesterday">Hier</option>
-          <option value="exact">Date précise</option>
-          <option value="range">Intervalle</option>
+          <option value="today">Coupures d’aujourd’hui</option>
+          <option value="yesterday">Coupures d’hier</option>
+          <option value="exact">Date de coupure précise</option>
+          <option value="range">Intervalle de coupure</option>
         </select>
       </label>
       {dateFilter === 'exact' && (
