@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { createPool } from 'mysql2/promise';
@@ -97,6 +97,12 @@ async function getState(connection) {
     betType: settings.bet_type, entryOdds: settings.entry_odds, stake: settings.stake,
     teams: [selectedMatch.homeTeam, selectedMatch.awayTeam], teamCatalog, matches, selectedMatchId: selectedMatch.id, activeBets, closedBets,
   };
+}
+
+function stateRevision(state) {
+  // Clock ticks and independent participant additions can be saved by other screens.
+  const { elapsedMinutes, secondsLeft, teamCatalog, ...sharedState } = state;
+  return createHash('sha256').update(JSON.stringify(sharedState)).digest('hex');
 }
 
 function validNumber(value, fallback, min = 0) {
@@ -326,7 +332,8 @@ export function createApiMiddleware() {
     if (!pathname.startsWith('/api/')) return next?.();
     try {
       if (request.method === 'GET' && pathname === '/api/state') {
-        return sendJson(response, 200, await transaction(false, getState));
+        const state = await transaction(false, getState);
+        return sendJson(response, 200, { ...state, revision: stateRevision(state) });
       }
       if (request.method === 'POST' && pathname === '/api/teams') {
         const { name: input } = await readBody(request);
@@ -345,8 +352,15 @@ export function createApiMiddleware() {
       }
       if (request.method === 'PUT' && pathname === '/api/state') {
         const state = await readBody(request);
-        await transaction(true, (connection) => saveState(connection, state));
-        return sendJson(response, 200, { saved: true });
+        const revision = await transaction(true, async (connection) => {
+          const currentState = await getState(connection);
+          if (state?.revision !== stateRevision(currentState)) return null;
+          await saveState(connection, state);
+          return stateRevision(await getState(connection));
+        });
+        return revision
+          ? sendJson(response, 200, { saved: true, revision })
+          : sendJson(response, 409, { error: 'Les données ont changé sur un autre écran. Rechargez la page avant de modifier les données.' });
       }
       if (request.method === 'DELETE' && pathname === '/api/positions/closed') {
         await transaction(true, (connection) => connection.query('DELETE FROM positions WHERE closed_at_label IS NOT NULL'));

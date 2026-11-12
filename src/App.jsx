@@ -70,6 +70,9 @@ export default function App() {
   const saveQueue = useRef(Promise.resolve());
   const saveTimeout = useRef();
   const latestSave = useRef();
+  const stateRevision = useRef();
+  const saveConflict = useRef(false);
+  const saveQueued = useRef(false);
   const saveImmediately = useRef(false);
   const [saveStatus, setSaveStatus] = useState('Chargement de la base…');
 
@@ -124,6 +127,7 @@ export default function App() {
         return state;
       })
       .then((state) => {
+        stateRevision.current = state.revision;
         const loadedMarkets = Array.isArray(state.markets) && state.markets.length
           ? state.markets : [{ ...DEFAULT_MARKET, name: state.market ?? DEFAULT_MARKET.name, backOdds: state.backOdds ?? state.odds, layOdds: state.layOdds ?? Number((state.odds + 0.01).toFixed(2)) }];
         const loadedMatches = Array.isArray(state.matches) && state.matches.length ? state.matches : [{ id: 'legacy-match', homeTeam: state.teams?.[0] ?? 'Real Madrid', awayTeam: state.teams?.[1] ?? 'Manchester City', matchDate: '', markets: loadedMarkets }];
@@ -158,14 +162,17 @@ export default function App() {
   useEffect(() => () => window.clearTimeout(saveTimeout.current), []);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || saveConflict.current) return;
     setSaveStatus('Modifications en cours de sauvegarde…');
     const enqueueSave = () => {
-      const catalogChanges = [...pendingMarketChanges.current.values()];
-      const catalogDeletions = [...pendingCatalogDeletions.current.values()];
-      saveQueue.current = saveQueue.current.then(() => save(catalogChanges, catalogDeletions));
+      if (saveQueued.current) return;
+      saveQueued.current = true;
+      saveQueue.current = saveQueue.current.then(() => {
+        saveQueued.current = false;
+        return latestSave.current();
+      });
     };
-    latestSave.current = enqueueSave;
+    latestSave.current = save;
     if (saveImmediately.current) {
       saveImmediately.current = false;
       window.clearTimeout(saveTimeout.current);
@@ -174,20 +181,25 @@ export default function App() {
     } else if (saveTimeout.current === undefined) {
       saveTimeout.current = window.setTimeout(() => {
         saveTimeout.current = undefined;
-        latestSave.current();
+        enqueueSave();
       }, 900);
     }
-    async function save(catalogChanges, catalogDeletions) {
+    async function save() {
+      if (saveConflict.current) return;
+      const catalogChanges = [...pendingMarketChanges.current.values()];
+      const catalogDeletions = [...pendingCatalogDeletions.current.values()];
       try {
         const response = await fetch('/api/state', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams, activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
+          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams, activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
         });
+        if (response.status === 409) saveConflict.current = true;
+        const result = await response.json();
         if (!response.ok) {
-          const result = await response.json();
           throw new Error(result.error || 'Échec de la sauvegarde');
         }
+        stateRevision.current = result.revision;
         for (const change of catalogChanges) {
           if (pendingMarketChanges.current.get(change.id) === change) pendingMarketChanges.current.delete(change.id);
         }
@@ -195,7 +207,7 @@ export default function App() {
           const key = JSON.stringify([deletion.type, deletion.key]);
           if (pendingCatalogDeletions.current.get(key) === deletion) pendingCatalogDeletions.current.delete(key);
         }
-        setSaveStatus('Toutes les données sont enregistrées');
+        if (latestSave.current === save) setSaveStatus('Toutes les données sont enregistrées');
       } catch (error) {
         setSaveStatus(`Erreur de sauvegarde : ${error.message}`);
       }
@@ -241,11 +253,13 @@ export default function App() {
       setBetError(`Liability de ${layLiability.toFixed(2)} € trop élevée : solde disponible ${availableBankroll.toFixed(2)} €.`);
       return { ok: false };
     }
+    saveImmediately.current = true;
     setActiveBets((bets) => [{ id: `${Date.now()}-${Math.random()}`, type: betType, entryOdds: parsedOdds, stake: parsedStake, marketId: selectedMarketId, categoryId: selectedMarketId, marketName: market, matchId: selectedMatchId, matchName: `${teams[0]} vs ${teams[1]}`, matchDate: currentMatch?.matchDate ?? '', matchTime: currentMatch?.matchTime ?? '', timestamp: timestamp() }, ...bets]);
     return { ok: true };
   };
 
   const closePosition = (bet, exitOdds = closeOddsFor(bet)) => {
+    saveImmediately.current = true;
     const finalPnL = calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake);
     setBankroll((current) => Number((current + finalPnL).toFixed(2)));
     setClosedBets((bets) => [{ ...bet, exitOdds, finalPnL, closedAt: new Date().toISOString() }, ...bets]);
@@ -429,14 +443,9 @@ export default function App() {
     setHistoryOpen(false);
   };
 
-  const clearHistory = async () => {
+  const clearHistory = () => {
+    saveImmediately.current = true;
     setClosedBets([]);
-    try {
-      const response = await fetch('/api/positions/closed', { method: 'DELETE' });
-      if (!response.ok) throw new Error('Échec de l’effacement');
-    } catch (error) {
-      setSaveStatus(`Erreur d’effacement : ${error.message}`);
-    }
   };
 
   if (!loaded) return <div className="min-h-screen grid place-items-center text-sm text-slate-400">Chargement du simulateur et de la base de données…</div>;
