@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, History, Pencil } from 'lucide-react';
-import { calculatePnL, closureDateTime, formatMatchDate, getPositionAmounts, localDateKey, matchesHistoryPeriod } from '../utils/betting.js';
+import { calculatePnL, closureDateTime, formatExitOdds, formatMatchDate, getPositionAmounts, localDateKey, matchesHistoryPeriod } from '../utils/betting.js';
 import { teamsForBet, teamsForBets } from '../utils/betTeams.js';
 import PositionEditor from './PositionEditor.jsx';
 
@@ -25,7 +25,7 @@ function PositionDetails({ bet, result, onClose }) {
     ['Date du match', formatMatchDate(bet.matchDate, bet.matchTime) || 'Non renseignée'],
     ['Ouverture', bet.timestamp || 'Non renseignée'],
     ['Cote d’entrée', bet.entryOdds.toFixed(2)],
-    ['Cote de sortie', bet.exitOdds === null ? 'Perte totale' : bet.exitOdds.toFixed(2)],
+    ['Cote de sortie', formatExitOdds(bet.exitOdds)],
     [bet.type === 'LAY' ? 'Mise Lay' : 'Mise Back', euros.format(matchedStake)],
     ...(bet.type === 'LAY' ? [['Liability', euros.format(liability)]] : []),
     ['Coupure', closedAtLabel(bet) || 'Non renseignée'],
@@ -166,7 +166,7 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
         onClick={() => setDetailsId(bet.id)}
         className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"
       />
-      <div className="min-w-0 space-y-1"><div className="text-[10px] text-slate-300">{bet.marketName ?? 'Over 1.5 goals'}</div><div className="text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className="flex items-center gap-2"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>{bet.type === 'BACK' ? 'POUR' : 'CONTRE'}</span><span className="text-xs text-slate-300 font-mono">{bet.entryOdds.toFixed(2)} → {bet.exitOdds === null ? 'Perte totale' : bet.exitOdds.toFixed(2)}</span><span className="text-[10px] text-slate-500 font-mono">({closedAtLabel(bet)})</span></div><div className="text-[11px] text-slate-500">{bet.type === 'LAY' ? `Liability: ${amounts.liability.toFixed(2)} € · Mise Lay: ${amounts.matchedStake.toFixed(2)} €` : `Mise Back: ${Number(bet.stake).toFixed(2)} €`}</div></div><div className="pointer-events-none relative z-10 flex flex-wrap items-center gap-2"><div className="text-right"><div className={`font-mono text-sm font-bold ${result >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{result >= 0 ? '+' : ''}{result.toFixed(2)} €</div><span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{result < 0 ? 'Perdu' : 'Gagné'} &amp; Sauvegardé</span></div><button
+      <div className="min-w-0 space-y-1"><div className="text-[10px] text-slate-300">{bet.marketName ?? 'Over 1.5 goals'}</div><div className="text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className="flex items-center gap-2"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>{bet.type === 'BACK' ? 'POUR' : 'CONTRE'}</span><span className="text-xs text-slate-300 font-mono">{bet.entryOdds.toFixed(2)} → {formatExitOdds(bet.exitOdds)}</span><span className="text-[10px] text-slate-500 font-mono">({closedAtLabel(bet)})</span></div><div className="text-[11px] text-slate-500">{bet.type === 'LAY' ? `Liability: ${amounts.liability.toFixed(2)} € · Mise Lay: ${amounts.matchedStake.toFixed(2)} €` : `Mise Back: ${Number(bet.stake).toFixed(2)} €`}</div></div><div className="pointer-events-none relative z-10 flex flex-wrap items-center gap-2"><div className="text-right"><div className={`font-mono text-sm font-bold ${result >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{result >= 0 ? '+' : ''}{result.toFixed(2)} €</div><span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{result < 0 ? 'Perdu' : 'Gagné'} &amp; Sauvegardé</span></div><button
       type="button"
       onClick={() => setPendingReopenId(bet.id)}
       className="pointer-events-auto rounded-lg border border-slate-700 px-3 py-2 text-xs text-indigo-300 hover:bg-slate-800"

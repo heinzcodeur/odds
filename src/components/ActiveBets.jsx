@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Layers, Pencil } from 'lucide-react';
-import { calculatePnL, formatMatchDate, getPositionAmounts } from '../utils/betting.js';
+import { calculatePnL, formatMatchDate, getPositionAmounts, TOTAL_WIN_EXIT_ODDS } from '../utils/betting.js';
 import { teamsForBet, teamsForBets } from '../utils/betTeams.js';
 import PositionEditor from './PositionEditor.jsx';
 
@@ -38,6 +38,13 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
           >
             Couper à perte totale ({calculatePnL(bet.type, bet.entryOdds, null, bet.stake).toFixed(2)} €)
           </button>
+          <button
+            type="button"
+            onClick={() => setPendingClose({ id: bet.id, exitOdds: TOTAL_WIN_EXIT_ODDS })}
+            className="mt-1 w-full rounded-lg border border-emerald-500/30 px-3 py-2 font-semibold text-emerald-300 hover:bg-emerald-500/10"
+          >
+            Couper avec gain total (+{calculatePnL(bet.type, bet.entryOdds, TOTAL_WIN_EXIT_ODDS, bet.stake).toFixed(2)} €)
+          </button>
         </details>
       </div></article>; })}</div>
     {pendingBet && (
@@ -52,7 +59,9 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
         <p id="close-position-details" className="mt-2 text-sm text-slate-400">
           {pendingClose.exitOdds === null
             ? `Perte totale de ${Math.abs(pendingPnL).toFixed(2)} €.`
-            : `Cashout à ${pendingClose.exitOdds.toFixed(2)} · résultat ${pendingPnL >= 0 ? '+' : ''}${pendingPnL.toFixed(2)} €.`}
+            : pendingClose.exitOdds === TOTAL_WIN_EXIT_ODDS
+              ? `Gain total de ${pendingPnL.toFixed(2)} €.`
+              : `Cashout à ${pendingClose.exitOdds.toFixed(2)} · résultat ${pendingPnL >= 0 ? '+' : ''}${pendingPnL.toFixed(2)} €.`}
         </p>
         <form method="dialog" className="mt-5 flex flex-wrap justify-end gap-2">
           <button type="submit" className="rounded-lg px-3 py-2 text-xs hover:bg-slate-800">Annuler</button>

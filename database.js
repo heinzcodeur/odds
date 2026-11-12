@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { createPool } from 'mysql2/promise';
-import { calculatePnL, participantNameKey } from './src/utils/betting.js';
+import { calculatePnL, participantNameKey, TOTAL_WIN_EXIT_ODDS } from './src/utils/betting.js';
 
 config({ path: fileURLToPath(new URL('./.env', import.meta.url)) });
 
@@ -217,7 +217,11 @@ async function saveState(connection, state) {
     const type = bet.type === 'BACK' ? 'BACK' : 'LAY';
     const entryOdds = validNumber(bet.entryOdds, 1.25, 1.01);
     const stake = validNumber(bet.stake, 1, 0.01);
-    const exitOdds = closedAt === null || bet.exitOdds === null ? null : validNumber(bet.exitOdds, 1.25, 1.01);
+    let exitOdds = null;
+    if (closedAt !== null && bet.exitOdds !== null) {
+      exitOdds = bet.exitOdds === TOTAL_WIN_EXIT_ODDS
+        ? TOTAL_WIN_EXIT_ODDS : validNumber(bet.exitOdds, 1.25, 1.01);
+    }
     const id = String(bet.id);
     const settled = settledPositions.get(id);
     // Keep historical results aligned with the amounts already credited.

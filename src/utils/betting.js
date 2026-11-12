@@ -1,8 +1,20 @@
+// A zero exit quote records a total win. Market quotes are at least 1.01.
+export const TOTAL_WIN_EXIT_ODDS = 0;
+
+export function formatExitOdds(exitOdds) {
+  if (exitOdds === null) return 'Perte totale';
+  if (exitOdds === TOTAL_WIN_EXIT_ODDS) return 'Gain total';
+  return exitOdds.toFixed(2);
+}
+
 export function calculatePnL(type, entryOdds, currentOdds, amount) {
   // A closed position with no exit quote was settled at a total loss.
   if (currentOdds === null) {
     const { liability, matchedStake } = getPositionAmounts(type, entryOdds, amount);
     return -Number((type === 'LAY' ? liability : matchedStake).toFixed(2));
+  }
+  if (currentOdds === TOTAL_WIN_EXIT_ODDS) {
+    return Number(maxPositionProfit(type, entryOdds, amount).toFixed(2));
   }
   if (type === 'LAY') {
     const target = Number(entryOdds) + 1;

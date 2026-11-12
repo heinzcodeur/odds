@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
-import { formatMatchDate } from '../utils/betting.js';
+import { formatMatchDate, TOTAL_WIN_EXIT_ODDS } from '../utils/betting.js';
 import ParticipantSelect from './ParticipantSelect.jsx';
 
 const inputClass = 'mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100';
@@ -9,7 +9,7 @@ export default function PositionEditor({ bet, matches, marketCatalog = [], close
   const [type, setType] = React.useState(bet.type);
   const [entryOdds, setEntryOdds] = React.useState(String(bet.entryOdds));
   const [stake, setStake] = React.useState(String(bet.stake));
-  const hasExitQuote = closed && bet.exitOdds !== null;
+  const hasExitQuote = closed && bet.exitOdds !== null && bet.exitOdds !== TOTAL_WIN_EXIT_ODDS;
   const [exitOdds, setExitOdds] = React.useState(String(bet.exitOdds ?? ''));
   const originalMarketId = bet.marketId ?? 'default';
   const [marketId, setMarketId] = React.useState(originalMarketId);
