@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#020617" />
+    <title>Simulateur de Cotes & Cashout</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: 'class', theme: { extend: { colors: {
+        back: { DEFAULT: '#3b82f6', hover: '#2563eb', light: '#eff6ff', dark: '#1e3a8a' },
+        lay: { DEFAULT: '#f43f5e', hover: '#e11d48', light: '#fff1f2', dark: '#881337' }
+      } } } };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
