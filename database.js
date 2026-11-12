@@ -135,10 +135,14 @@ async function deleteMissing(connection, table, ids) {
     await connection.query(`DELETE FROM ${table}`);
     return;
   }
-  // A JSON table keeps this bounded to one prepared parameter even for large histories.
-  await connection.execute(`DELETE FROM ${table} WHERE id NOT IN (
-    SELECT CONVERT(kept.id USING utf8mb4) COLLATE utf8mb4_0900_bin FROM JSON_TABLE(?, '$[*]' COLUMNS(id VARCHAR(191) PATH '$')) AS kept
-  )`, [JSON.stringify(ids)]);
+  const [rows] = await connection.query(`SELECT id FROM ${table}`);
+  const keptIds = new Set(ids);
+  const removedIds = rows.map(({ id }) => id).filter((id) => !keptIds.has(id));
+  for (let start = 0; start < removedIds.length; start += 500) {
+    const batch = removedIds.slice(start, start + 500);
+    const placeholders = batch.map(() => '?').join(',');
+    await connection.execute(`DELETE FROM ${table} WHERE id IN (${placeholders})`, batch);
+  }
 }
 
 

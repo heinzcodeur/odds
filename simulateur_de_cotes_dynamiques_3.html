@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur de Cotes & Cashout</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        back: {
+                            DEFAULT: '#3b82f6',
+                            hover: '#2563eb',
+                            light: '#eff6ff',
+                            dark: '#1e3a8a'
+                        },
+                        lay: {
+                            DEFAULT: '#f43f5e',
+                            hover: '#e11d48',
+                            light: '#fff1f2',
+                            dark: '#881337'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div id="app" v-cloak class="pb-12">
+        <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2 rounded-xl shadow-lg shadow-blue-500/20">
+                        <i data-lucide="trending-up" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                            OddsBoost Pro Engine
+                        </h1>
+                        <p class="text-xs text-slate-400">Simulateur avec Cashout & Capital</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <!-- Bankroll Display -->
+                    <div class="bg-slate-800/90 border border-slate-700/80 rounded-xl px-4 py-1.5 flex items-center gap-2">
+                        <div class="p-1 rounded-md bg-emerald-500/20 text-emerald-400">
+                            <i data-lucide="wallet" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-[10px] uppercase font-semibold text-slate-400 leading-tight">Solde Total</div>
+                            <div class="text-sm font-bold font-mono text-emerald-400">
+                                {{ bankroll.toFixed(2) }} €
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Timer Badge -->
+                    <div class="hidden sm:flex items-center space-x-3 bg-slate-800/80 border border-slate-700/60 rounded-xl px-4 py-1.5">
+                        <span class="relative flex h-2.5 w-2.5">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" v-if="isRunning"></span>
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="isRunning ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                        </span>
+                        <span class="text-xs font-medium text-slate-300">Boost:</span>
+                        <span class="font-mono text-sm font-semibold text-emerald-400">{{ formatTimer(secondsLeft) }}</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- Left Column: Match & Betting Controls -->
+                <div class="lg:col-span-6 space-y-6">
+
+                    <!-- Live Match & Current Odds Card -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <i data-lucide="activity" class="w-3.5 h-3.5"></i> EN DIRECT
+                            </span>
+                            <div class="flex items-center space-x-2">
+                                <button @click="toggleTimer" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 transition border border-slate-700 flex items-center gap-1.5">
+                                    <i :data-lucide="isRunning ? 'pause' : 'play'" class="w-3.5 h-3.5"></i>
+                                    {{ isRunning ? 'Pause' : 'Reprendre' }}
+                                </button>
+                                <button @click="fastForward(10)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5">
+                                    <i data-lucide="fast-forward" class="w-3.5 h-3.5"></i>
+                                    +10 Min (+0.10)
+                                </button>
+                                <button @click="resetMatch" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition border border-slate-700" title="Réinitialiser Match">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Match info -->
+                        <div class="text-center my-5">
+                            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-1.5">Ligue des Champions</div>
+                            <div class="flex items-center justify-center space-x-4 text-lg font-bold text-slate-100">
+                                <span>Real Madrid</span>
+                                <span class="text-slate-600 text-xs font-mono px-2 py-0.5 bg-slate-800/80 rounded">VS</span>
+                                <span>Manchester City</span>
+                            </div>
+                            <div class="text-xs text-slate-400 mt-2">Temps écoulé : <span class="font-mono text-slate-200">{{ Math.floor(elapsedMinutes) }} min</span></div>
+                        </div>
+
+                        <!-- Big Odds Display -->
+                        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-slate-400 font-medium">Cote actuelle du Match</div>
+                                <div class="text-xs text-slate-500">+0.10 / 10 minutes</div>
+                            </div>
+                            <div class="flex items-baseline space-x-3">
+                                <span class="text-4xl font-extrabold font-mono text-amber-400 transition-all duration-300">
+                                    {{ currentOdds.toFixed(2) }}
+                                </span>
+                                <span v-if="lastIncrease" class="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded animate-pulse">
+                                    +0.10
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Manual Adjustment Slider -->
+                        <div class="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                            <label for="odds-range" class="flex items-center gap-1.5">
+                                <i data-lucide="sliders" class="w-3.5 h-3.5 text-slate-500"></i> Ajuster la cote :
+                            </label>
+                            <div class="flex items-center gap-3 w-1/2">
+                                <input id="odds-range" type="range" min="1.05" max="10.00" step="0.05" v-model.number="currentOdds" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                                <span class="font-mono font-bold text-slate-300 w-12 text-right">{{ currentOdds.toFixed(2) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Betting Form Card -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                        <h2 class="text-base font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                            <i data-lucide="ticket" class="w-5 h-5 text-blue-400"></i>
+                            Ouvrir une Position
+                        </h2>
+
+                        <!-- Back / Lay Toggle -->
+                        <div class="grid grid-cols-2 gap-3 mb-5">
+                            <button @click="betType = 'BACK'" 
+                                    :class="betType === 'BACK' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 border-blue-500' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 border-slate-700'"
+                                    class="py-3 px-4 rounded-xl border text-sm font-semibold flex flex-col items-center justify-center transition-all">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                                    <span>POUR (Back)</span>
+                                </div>
+                                <span class="text-[10px] font-normal opacity-80 mt-0.5">Gagne si la cote baisse</span>
+                            </button>
+
+                            <button @click="betType = 'LAY'" 
+                                    :class="betType === 'LAY' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 border-rose-500' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 border-slate-700'"
+                                    class="py-3 px-4 rounded-xl border text-sm font-semibold flex flex-col items-center justify-center transition-all">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="arrow-down-right" class="w-4 h-4"></i>
+                                    <span>CONTRE (Lay)</span>
+                                </div>
+                                <span class="text-[10px] font-normal opacity-80 mt-0.5">Gagne si la cote monte</span>
+                            </button>
+                        </div>
+
+                        <!-- Form Inputs -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1.5">Cote d'entrée (€)</label>
+                                <div class="relative">
+                                    <input type="number" step="0.01" v-model.number="entryOdds" class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 font-mono text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                                    <button @click="entryOdds = currentOdds" class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700">
+                                        Cote Actuelle
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1.5">Mise / Stake (€)</label>
+                                <div class="relative">
+                                    <input type="number" step="10" v-model.number="stake" class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 font-mono text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">€</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Live Calculation Preview Card -->
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 mb-5 space-y-2">
+                            <div class="flex justify-between text-xs text-slate-400">
+                                <span>Formule calculée :</span>
+                                <span class="font-mono text-amber-400 font-semibold">
+                                    {{ betType === 'LAY' ? `(${currentOdds.toFixed(2)} - ${entryOdds.toFixed(2)})` : `(${entryOdds.toFixed(2)} - ${currentOdds.toFixed(2)})` }} × {{ stake }}€
+                                </span>
+                            </div>
+                            <div class="pt-2 border-t border-slate-800 flex justify-between items-center">
+                                <span class="text-xs font-medium text-slate-300">Estimation PnL Actuel :</span>
+                                <span class="text-base font-bold font-mono" :class="calculatedPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'">
+                                    {{ calculatedPnL >= 0 ? '+' : '' }}{{ calculatedPnL.toFixed(2) }} €
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Place Bet Button -->
+                        <button @click="placeBet" class="w-full py-3 px-4 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2"
+                                :class="betType === 'BACK' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/25' : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/25'">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                            Valider la Position {{ betType === 'BACK' ? 'POUR' : 'CONTRE' }} à {{ entryOdds.toFixed(2) }}
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Right Column: Active Bets (with Cashout) & Closed Bets Ledger -->
+                <div class="lg:col-span-6 space-y-6">
+
+                    <!-- Active Bets List (Positions en cours) -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-base font-semibold text-slate-200 flex items-center gap-2">
+                                <i data-lucide="layers" class="w-5 h-5 text-indigo-400"></i>
+                                Positions Actives ({{ activeBets.length }})
+                            </h3>
+                            <button v-if="activeBets.length > 1" @click="cashoutAll" class="text-xs font-medium px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition">
+                                Tout Couper
+                            </button>
+                        </div>
+
+                        <div v-if="activeBets.length === 0" class="text-center py-8 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                            Aucune position active.<br>Ouvrez un pari à gauche pour suivre le Cashout en direct.
+                        </div>
+
+                        <div class="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+                            <div v-for="bet in activeBets" :key="bet.id" class="bg-slate-950 border border-slate-800/90 rounded-xl p-4 transition hover:border-slate-700">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold px-2 py-0.5 rounded"
+                                              :class="bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'">
+                                            {{ bet.type === 'BACK' ? 'POUR (Back)' : 'CONTRE (Lay)' }}
+                                        </span>
+                                        <span class="text-[11px] text-slate-500 font-mono">{{ bet.timestamp }}</span>
+                                    </div>
+                                    
+                                    <!-- Current live P&L badge -->
+                                    <div class="font-mono text-sm font-bold" :class="calculateBetPnL(bet) >= 0 ? 'text-emerald-400' : 'text-rose-400'">
+                                        {{ calculateBetPnL(bet) >= 0 ? '+' : '' }}{{ calculateBetPnL(bet).toFixed(2) }} €
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-3 gap-2 text-xs text-slate-400 mb-3 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/60">
+                                    <div>Cote entrée: <span class="font-mono text-slate-200 font-medium block text-sm">{{ bet.entryOdds.toFixed(2) }}</span></div>
+                                    <div>Cote actuelle: <span class="font-mono text-amber-400 font-medium block text-sm">{{ currentOdds.toFixed(2) }}</span></div>
+                                    <div>Mise: <span class="font-mono text-slate-200 font-medium block text-sm">{{ bet.stake }} €</span></div>
+                                </div>
+
+                                <!-- Action: Cashout button -->
+                                <button @click="closePosition(bet)" 
+                                        class="w-full py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md"
+                                        :class="calculateBetPnL(bet) >= 0 ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                                    Couper / Cashout à {{ currentOdds.toFixed(2) }} 
+                                    ({{ calculateBetPnL(bet) >= 0 ? '+' : '' }}{{ calculateBetPnL(bet).toFixed(2) }} €)
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Closed Positions / Cashout History -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-base font-semibold text-slate-200 flex items-center gap-2">
+                                <i data-lucide="history" class="w-5 h-5 text-emerald-400"></i>
+                                Historique des Positions Fermées ({{ closedBets.length }})
+                            </h3>
+                            <button v-if="closedBets.length > 0" @click="clearHistory" class="text-xs text-slate-500 hover:text-rose-400 transition">
+                                Effacer Historique
+                            </button>
+                        </div>
+
+                        <div v-if="closedBets.length === 0" class="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                            Aucune position fermée pour le moment.
+                        </div>
+
+                        <div class="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+                            <div v-for="bet in closedBets" :key="bet.id" class="bg-slate-950 border border-slate-800/60 rounded-xl p-3 flex items-center justify-between">
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                              :class="bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'">
+                                            {{ bet.type === 'BACK' ? 'POUR' : 'CONTRE' }}
+                                        </span>
+                                        <span class="text-xs text-slate-300 font-mono">
+                                            {{ bet.entryOdds.toFixed(2) }} &rarr; {{ bet.exitOdds.toFixed(2) }}
+                                        </span>
+                                        <span class="text-[10px] text-slate-500 font-mono">({{ bet.closedAt }})</span>
+                                    </div>
+                                    <div class="text-[11px] text-slate-500">
+                                        Mise: {{ bet.stake }} €
+                                    </div>
+                                </div>
+
+                                <div class="text-right">
+                                    <div class="font-mono text-sm font-bold" :class="bet.finalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'">
+                                        {{ bet.finalPnL >= 0 ? '+' : '' }}{{ bet.finalPnL.toFixed(2) }} €
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Gagné & Sauvegardé</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                // Bankroll / Capital
+                const bankroll = ref(1000.00);
+
+                // Live match & Timer State
+                const currentOdds = ref(1.25);
+                const secondsLeft = ref(600); // 10 minutes = 600s
+                const isRunning = ref(true);
+                const elapsedMinutes = ref(0);
+                const lastIncrease = ref(false);
+                let timerInterval = null;
+
+                // Form State
+                const betType = ref('LAY'); // Par défaut sur CONTRE
+                const entryOdds = ref(1.25);
+                const stake = ref(100);
+
+                // Betting Ledger State
+                const activeBets = ref([]);
+                const closedBets = ref([]);
+
+                // Timer Logic
+                const startTimer = () => {
+                    if (timerInterval) clearInterval(timerInterval);
+                    timerInterval = setInterval(() => {
+                        if (secondsLeft.value > 0) {
+                            secondsLeft.value--;
+                            elapsedMinutes.value += (1 / 60);
+                        } else {
+                            increaseOdds(0.10);
+                            secondsLeft.value = 600;
+                        }
+                    }, 1000);
+                };
+
+                const toggleTimer = () => {
+                    isRunning.value = !isRunning.value;
+                    if (isRunning.value) {
+                        startTimer();
+                    } else {
+                        clearInterval(timerInterval);
+                    }
+                };
+
+                const increaseOdds = (amount = 0.10) => {
+                    currentOdds.value = parseFloat((currentOdds.value + amount).toFixed(2));
+                    lastIncrease.value = true;
+                    setTimeout(() => {
+                        lastIncrease.value = false;
+                    }, 2000);
+                };
+
+                const fastForward = (minutes = 10) => {
+                    elapsedMinutes.value += minutes;
+                    const boosts = Math.floor(minutes / 10);
+                    if (boosts > 0) {
+                        increaseOdds(boosts * 0.10);
+                    }
+                };
+
+                const resetMatch = () => {
+                    currentOdds.value = 1.25;
+                    entryOdds.value = 1.25;
+                    secondsLeft.value = 600;
+                    elapsedMinutes.value = 0;
+                };
+
+                const formatTimer = (seconds) => {
+                    const m = Math.floor(seconds / 60);
+                    const s = seconds % 60;
+                    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                };
+
+                // Form Calculations
+                const deltaOdds = computed(() => {
+                    return parseFloat((currentOdds.value - entryOdds.value).toFixed(2));
+                });
+
+                const calculatedPnL = computed(() => {
+                    const delta = currentOdds.value - entryOdds.value;
+                    const rawPnL = delta * stake.value;
+                    // CONTRE (Lay) -> Gain quand la cote monte
+                    // POUR (Back) -> Gain quand la cote baisse
+                    return betType.value === 'LAY' ? rawPnL : -rawPnL;
+                });
+
+                // Ledger & Cashout Operations
+                const placeBet = () => {
+                    activeBets.value.unshift({
+                        id: Date.now(),
+                        type: betType.value,
+                        entryOdds: parseFloat(entryOdds.value),
+                        stake: parseFloat(stake.value),
+                        timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    });
+                };
+
+                const calculateBetPnL = (bet) => {
+                    const delta = currentOdds.value - bet.entryOdds;
+                    const rawPnL = delta * bet.stake;
+                    return bet.type === 'LAY' ? rawPnL : -rawPnL;
+                };
+
+                // Cashout a specific position
+                const closePosition = (bet) => {
+                    const finalPnL = calculateBetPnL(bet);
+                    
+                    // Update global bankroll
+                    bankroll.value = parseFloat((bankroll.value + finalPnL).toFixed(2));
+
+                    // Move to closed history
+                    closedBets.value.unshift({
+                        ...bet,
+                        exitOdds: currentOdds.value,
+                        finalPnL: finalPnL,
+                        closedAt: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    });
+
+                    // Remove from active list
+                    activeBets.value = activeBets.value.filter(b => b.id !== bet.id);
+                };
+
+                // Cashout all open positions at once
+                const cashoutAll = () => {
+                    [...activeBets.value].forEach(bet => {
+                        closePosition(bet);
+                    });
+                };
+
+                const clearHistory = () => {
+                    closedBets.value = [];
+                };
+
+                watch(currentOdds, (newVal, oldVal) => {
+                    if (activeBets.value.length === 0 && entryOdds.value === oldVal) {
+                        entryOdds.value = newVal;
+                    }
+                });
+
+                onMounted(() => {
+                    startTimer();
+                    if (window.lucide) {
+                        lucide.createIcons();
+                    }
+                });
+
+                onUnmounted(() => {
+                    if (timerInterval) clearInterval(timerInterval);
+                });
+
+                return {
+                    bankroll,
+                    currentOdds,
+                    secondsLeft,
+                    isRunning,
+                    elapsedMinutes,
+                    lastIncrease,
+                    betType,
+                    entryOdds,
+                    stake,
+                    activeBets,
+                    closedBets,
+                    deltaOdds,
+                    calculatedPnL,
+                    toggleTimer,
+                    fastForward,
+                    resetMatch,
+                    formatTimer,
+                    placeBet,
+                    calculateBetPnL,
+                    closePosition,
+                    cashoutAll,
+                    clearHistory
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

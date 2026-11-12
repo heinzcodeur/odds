@@ -68,6 +68,8 @@ export default function App() {
   const [betNotice, setBetNotice] = useState('');
   const [loaded, setLoaded] = useState(false);
   const saveQueue = useRef(Promise.resolve());
+  const saveTimeout = useRef();
+  const latestSave = useRef();
   const saveImmediately = useRef(false);
   const [saveStatus, setSaveStatus] = useState('Chargement de la base…');
 
@@ -129,7 +131,8 @@ export default function App() {
         const datedMatches = realMatches.filter((item) => Number.isFinite(Date.parse(item.matchDate ?? '')));
         const latestMatch = [...(datedMatches.length ? datedMatches : realMatches.length ? realMatches : loadedMatches)]
           .sort((a, b) => Date.parse(b.matchDate ?? '') - Date.parse(a.matchDate ?? ''))[0];
-        const chosenMatchId = latestMatch?.id ?? loadedMatches[0].id;
+        const chosenMatchId = loadedMatches.some((item) => item.id === state.selectedMatchId)
+          ? state.selectedMatchId : latestMatch?.id ?? loadedMatches[0].id;
         const activeMatch = loadedMatches.find((item) => item.id === chosenMatchId) ?? loadedMatches[0];
         const chosenMarkets = Array.isArray(activeMatch.markets) && activeMatch.markets.length ? activeMatch.markets : loadedMarkets;
         const chosenMarketId = chosenMarkets.some((item) => item.id === state.selectedMarketId) ? state.selectedMarketId : chosenMarkets[0].id;
@@ -152,20 +155,28 @@ export default function App() {
       .catch((error) => setSaveStatus(`Base indisponible : ${error.message}`));
   }, []);
 
+  useEffect(() => () => window.clearTimeout(saveTimeout.current), []);
+
   useEffect(() => {
-    if (!loaded) return undefined;
+    if (!loaded) return;
     setSaveStatus('Modifications en cours de sauvegarde…');
     const enqueueSave = () => {
       const catalogChanges = [...pendingMarketChanges.current.values()];
       const catalogDeletions = [...pendingCatalogDeletions.current.values()];
       saveQueue.current = saveQueue.current.then(() => save(catalogChanges, catalogDeletions));
     };
+    latestSave.current = enqueueSave;
     if (saveImmediately.current) {
       saveImmediately.current = false;
+      window.clearTimeout(saveTimeout.current);
+      saveTimeout.current = undefined;
       enqueueSave();
-      return undefined;
+    } else if (saveTimeout.current === undefined) {
+      saveTimeout.current = window.setTimeout(() => {
+        saveTimeout.current = undefined;
+        latestSave.current();
+      }, 900);
     }
-    const timeout = window.setTimeout(enqueueSave, 900);
     async function save(catalogChanges, catalogDeletions) {
       try {
         const response = await fetch('/api/state', {
@@ -189,7 +200,6 @@ export default function App() {
         setSaveStatus(`Erreur de sauvegarde : ${error.message}`);
       }
     }
-    return () => window.clearTimeout(timeout);
   }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams, activeBets, closedBets]);
 
   useEffect(() => {
