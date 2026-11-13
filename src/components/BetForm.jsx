@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowUpRight, Check, PlusCircle, Ticket, X } from 'luci
 import { calculatePnL, getPositionAmounts, maxPositionProfit } from '../utils/betting.js';
 
 export default function BetForm({ betType, setBetType, entryOdds, cashoutOdds, stake, setStake, error, notice, matchName, marketName, onPlace }) {
+  const [liabilityDraft, setLiabilityDraft] = React.useState(null);
   const [tag, setTag] = React.useState('prod');
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [success, setSuccess] = React.useState(null);
@@ -10,6 +11,20 @@ export default function BetForm({ betType, setBetType, entryOdds, cashoutOdds, s
   const numericStake = Number(stake);
   const pnl = calculatePnL(betType, numericOdds, cashoutOdds, numericStake);
   const amounts = getPositionAmounts(betType, numericOdds, numericStake);
+  const liability = betType === 'LAY' ? amounts.liability : numericStake;
+  const updateLiability = (event) => {
+    const value = event.target.value;
+    setLiabilityDraft(value);
+    const amount = Number(value);
+    const multiplier = betType === 'LAY' ? numericOdds - 1 : 1;
+    if (!Number.isFinite(amount) || amount < 0 || !Number.isFinite(multiplier) || multiplier <= 0) {
+      setStake(0);
+      return;
+    }
+    // Round down to cents so the stake stays within the requested exposure.
+    const stakeInCents = (amount * 100) / multiplier;
+    setStake(Math.floor(stakeInCents + Number.EPSILON * stakeInCents * 4) / 100);
+  };
   const outcomeLabel = betType === 'LAY' ? 'Liability à engager' : 'Gain net maximal';
   const outcomeAmount = betType === 'LAY' ? amounts.liability : maxPositionProfit(betType, numericOdds, numericStake);
   const confirmPosition = () => {
@@ -31,7 +46,22 @@ export default function BetForm({ betType, setBetType, entryOdds, cashoutOdds, s
         </label>
         <input id="entry-odds" type="text" readOnly value={numericOdds.toFixed(2)} className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-sm text-slate-100" />
       </div>
-      <div><label className="block text-xs font-medium text-slate-400 mb-1.5" htmlFor="stake">Stake / mise (€)</label><div className="relative"><input id="stake" type="number" min="0.01" step="1" value={stake} onChange={(event) => setStake(Number(event.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 font-mono text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">€</span></div></div>
+      <div><label className="block text-xs font-medium text-slate-400 mb-1.5" htmlFor="stake">Stake / mise (€)</label><div className="relative"><input id="stake" type="number" min="0.01" step="0.01" value={stake} onChange={(event) => setStake(Number(event.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 font-mono text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">€</span></div></div>
+      <div>
+        <label htmlFor="position-liability" className="mb-1.5 block text-xs font-medium text-slate-400">
+          Liability / perte maximale (€)
+        </label>
+        <input
+          id="position-liability"
+          type="number"
+          min="0.01"
+          step="0.01"
+          value={liabilityDraft ?? liability.toFixed(2)}
+          onChange={updateLiability}
+          onBlur={() => setLiabilityDraft(null)}
+          className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-sm text-slate-100 focus:border-blue-500 focus:outline-none"
+        />
+      </div>
     </div>
     <label className="mb-4 block text-xs font-medium text-slate-400">
       Tag de la position

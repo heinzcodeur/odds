@@ -5,6 +5,7 @@ import BetForm from './components/BetForm.jsx';
 import ActiveBets from './components/ActiveBets.jsx';
 import BetHistory from './components/BetHistory.jsx';
 import BackOffice from './components/BackOffice.jsx';
+import TodayMatches from './components/TodayMatches.jsx';
 import { History, X } from 'lucide-react';
 import useMatchTimer from './hooks/useMatchTimer.js';
 import { calculatePnL, maxPositionProfit, participantNameKey, timestamp } from './utils/betting.js';
@@ -407,6 +408,7 @@ export default function App() {
       matchTime: details.matchTime ?? '',
       markets: newMarkets,
     };
+    saveImmediately.current = true;
     setMatches((items) => [next, ...items]);
     setSelectedMatchId(id);
     setMarkets(newMarkets);
@@ -462,6 +464,7 @@ export default function App() {
         <BetForm betType={betType} setBetType={setBetType} entryOdds={entryOdds} cashoutOdds={betType === 'BACK' ? layOdds : backOdds} stake={stake} setStake={setStake} error={betError} notice={betNotice} matchName={`${teams[0]} vs ${teams[1]}`} marketName={market} onPlace={placeBet} />
       </div>
       <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">
+        <TodayMatches matches={matches} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} />
         <ActiveBets bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => [...activeBets].forEach(closePosition)} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
         <button type="button" onClick={() => setHistoryOpen(true)} className="w-full shrink-0 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-slate-200 shadow-xl transition hover:border-emerald-500/40 hover:bg-slate-800/80">
           <span className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" />Consulter l’historique</span>

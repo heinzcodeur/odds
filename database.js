@@ -373,6 +373,9 @@ export function createApiMiddleware() {
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
           return sendJson(response, 503, { error: 'Accès MySQL refusé. Vérifiez MYSQL_USER et MYSQL_PASSWORD dans .env.' });
         }
+        if (error.code === 'ER_BAD_FIELD_ERROR' && /Unknown column 'tag'/.test(error.message)) {
+          return sendJson(response, 503, { error: 'La colonne tag manque dans positions. Appliquez la migration 003-position-tag à la base utilisée par ce serveur.' });
+        }
         if (error.code === 'ER_BAD_DB_ERROR' || error.code === 'ER_NO_SUCH_TABLE') {
           return sendJson(response, 503, { error: 'Base OddsBoost introuvable ou incomplète. Vérifiez MYSQL_DATABASE et l’import.' });
         }
