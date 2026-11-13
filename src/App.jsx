@@ -260,6 +260,7 @@ export default function App() {
   };
 
   const closePosition = (bet, exitOdds = closeOddsFor(bet)) => {
+    if (saveConflict.current) return;
     saveImmediately.current = true;
     const finalPnL = calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake);
     if (bet.tag !== 'dry-run') setBankroll((current) => Number((current + finalPnL).toFixed(2)));
@@ -465,7 +466,7 @@ export default function App() {
       </div>
       <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">
         <TodayMatches matches={matches} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} />
-        <ActiveBets bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => [...activeBets].forEach(closePosition)} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
+        <ActiveBets bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => activeBets.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
         <button type="button" onClick={() => setHistoryOpen(true)} className="w-full shrink-0 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-slate-200 shadow-xl transition hover:border-emerald-500/40 hover:bg-slate-800/80">
           <span className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" />Consulter l’historique</span>
           <span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs text-slate-400">{closedBets.length}</span>
