@@ -13,6 +13,26 @@ import { calculatePnL, maxPositionProfit, participantNameKey, timestamp } from '
 const DEFAULT_MARKET = { id: 'default', name: 'Over 1.5 goals', backOdds: 1.25, layOdds: 1.26 };
 
 export default function App() {
+  const [confirmExit, setConfirmExit] = useState(false);
+
+  useEffect(() => {
+    if (!window.history.state?.oddsExitGuard) {
+      window.history.pushState({ ...window.history.state, oddsExitGuard: true }, '');
+    }
+    const handleBack = () => {
+      if (window.history.state?.oddsExitGuard) return;
+      window.history.pushState({ ...window.history.state, oddsExitGuard: true }, '');
+      setConfirmExit(true);
+    };
+    window.addEventListener('popstate', handleBack);
+    return () => window.removeEventListener('popstate', handleBack);
+  }, []);
+
+  const leaveApp = () => {
+    setConfirmExit(false);
+    window.history.go(-2);
+  };
+
   const [bankroll, setBankroll] = useState(1000);
   const [marketCatalog, setMarketCatalog] = useState([]);
   const pendingMarketChanges = useRef(new Map());
@@ -476,6 +496,20 @@ export default function App() {
   if (!loaded) return <div className="min-h-screen grid place-items-center text-sm text-slate-400">Chargement du simulateur et de la base de données…</div>;
 
   return <div className="pb-12">
+    {confirmExit && (
+      <dialog
+        ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
+        onClose={() => setConfirmExit(false)}
+        aria-labelledby="exit-title"
+        className="m-auto w-[calc(100%_-_2rem)] max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 text-slate-100 backdrop:bg-black/60"
+      >
+        <h2 id="exit-title" className="text-base font-semibold">Quitter OddsBoost ?</h2>
+        <form method="dialog" className="mt-5 flex justify-end gap-2">
+          <button autoFocus className="rounded-lg px-3 py-2 text-sm hover:bg-slate-800">Rester</button>
+          <button type="button" onClick={leaveApp} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold">Quitter</button>
+        </form>
+      </dialog>
+    )}
     <Header bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')} />
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"><p role="status" aria-live="polite" className="mb-3 text-right text-[11px] text-slate-500">{saveStatus}</p><div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-6 space-y-6">
