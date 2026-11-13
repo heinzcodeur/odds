@@ -229,13 +229,13 @@ export default function App() {
     return bet.type === 'BACK' ? Number(positionMarket.layOdds) : Number(positionMarket.backOdds);
   };
   const pnlFor = (bet) => calculatePnL(bet.type, bet.entryOdds, closeOddsFor(bet), bet.stake);
-  const layLiabilityInPlay = activeBets.reduce((total, bet) => total + (bet.type === 'LAY' ? Number(bet.stake) * (Number(bet.entryOdds) - 1) : 0), 0);
+  const layLiabilityInPlay = activeBets.reduce((total, bet) => total + (bet.tag !== 'dry-run' && bet.type === 'LAY' ? Number(bet.stake) * (Number(bet.entryOdds) - 1) : 0), 0);
   const availableBankroll = bankroll - layLiabilityInPlay;
   const matchingLayBets = activeBets.filter((bet) => bet.type === 'LAY'
     && (bet.marketId ?? 'default') === selectedMarketId
     && (bet.matchId ?? 'legacy-match') === selectedMatchId);
 
-  const placeBet = () => {
+  const placeBet = (tag = 'prod') => {
     const parsedOdds = Number(entryOdds);
     const parsedStake = Number(stake);
     setBetError('');
@@ -249,19 +249,19 @@ export default function App() {
       return { ok: false };
     }
     const layLiability = betType === 'LAY' ? parsedStake * (parsedOdds - 1) : 0;
-    if (betType === 'LAY' && layLiability > availableBankroll) {
+    if (tag !== 'dry-run' && betType === 'LAY' && layLiability > availableBankroll) {
       setBetError(`Liability de ${layLiability.toFixed(2)} € trop élevée : solde disponible ${availableBankroll.toFixed(2)} €.`);
       return { ok: false };
     }
     saveImmediately.current = true;
-    setActiveBets((bets) => [{ id: `${Date.now()}-${Math.random()}`, type: betType, entryOdds: parsedOdds, stake: parsedStake, marketId: selectedMarketId, categoryId: selectedMarketId, marketName: market, matchId: selectedMatchId, matchName: `${teams[0]} vs ${teams[1]}`, matchDate: currentMatch?.matchDate ?? '', matchTime: currentMatch?.matchTime ?? '', timestamp: timestamp() }, ...bets]);
+    setActiveBets((bets) => [{ id: `${Date.now()}-${Math.random()}`, type: betType, tag, entryOdds: parsedOdds, stake: parsedStake, marketId: selectedMarketId, categoryId: selectedMarketId, marketName: market, matchId: selectedMatchId, matchName: `${teams[0]} vs ${teams[1]}`, matchDate: currentMatch?.matchDate ?? '', matchTime: currentMatch?.matchTime ?? '', timestamp: timestamp() }, ...bets]);
     return { ok: true };
   };
 
   const closePosition = (bet, exitOdds = closeOddsFor(bet)) => {
     saveImmediately.current = true;
     const finalPnL = calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake);
-    setBankroll((current) => Number((current + finalPnL).toFixed(2)));
+    if (bet.tag !== 'dry-run') setBankroll((current) => Number((current + finalPnL).toFixed(2)));
     setClosedBets((bets) => [{ ...bet, exitOdds, finalPnL, closedAt: new Date().toISOString() }, ...bets]);
     setActiveBets((bets) => bets.filter((item) => item.id !== bet.id));
   };
@@ -280,10 +280,12 @@ export default function App() {
   };
 
   const editActivePosition = (bet, changes) => {
+    saveImmediately.current = true;
     if (changes.marketId || changes.matchId) ensurePositionMarket({ ...bet, ...changes });
     setActiveBets((items) => items.map((item) => item.id === bet.id ? { ...item, ...changes } : item));
   };
   const editClosedPosition = (bet, changes) => {
+    saveImmediately.current = true;
     const oldPnL = Number(bet.finalPnL ?? calculatePnL(bet.type, bet.entryOdds, bet.exitOdds, bet.stake));
     const updated = { ...bet, ...changes };
     const settlementChanged = updated.type !== bet.type || updated.entryOdds !== bet.entryOdds
@@ -291,13 +293,15 @@ export default function App() {
     updated.finalPnL = settlementChanged
       ? calculatePnL(updated.type, updated.entryOdds, updated.exitOdds, updated.stake)
       : oldPnL;
-    setBankroll((current) => Number((current + updated.finalPnL - oldPnL).toFixed(2)));
+    const previousContribution = bet.tag === 'dry-run' ? 0 : oldPnL;
+    const updatedContribution = updated.tag === 'dry-run' ? 0 : updated.finalPnL;
+    setBankroll((current) => Number((current + updatedContribution - previousContribution).toFixed(2)));
     setClosedBets((items) => items.map((item) => item.id === bet.id ? updated : item));
   };
   const deleteActivePosition = (bet) => setActiveBets((items) => items.filter((item) => item.id !== bet.id));
   const deleteClosedPosition = (bet) => {
     const pnl = Number(bet.finalPnL ?? calculatePnL(bet.type, bet.entryOdds, bet.exitOdds, bet.stake));
-    setBankroll((current) => Number((current - pnl).toFixed(2)));
+    if (bet.tag !== 'dry-run') setBankroll((current) => Number((current - pnl).toFixed(2)));
     setClosedBets((items) => items.filter((item) => item.id !== bet.id));
   };
 
@@ -338,7 +342,7 @@ export default function App() {
     const selectableMatches = remainingMatches.filter((match) => match.markets.length);
     const nextMatch = selectableMatches.find((match) => match.id === selectedMatchId) ?? selectableMatches[0];
     const removedClosed = closedBets.filter(affectsPosition);
-    const settledTotal = removedClosed.reduce((sum, bet) =>
+    const settledTotal = removedClosed.filter((bet) => bet.tag !== 'dry-run').reduce((sum, bet) =>
       sum + (bet.finalPnL ?? calculatePnL(bet.type, bet.entryOdds, bet.exitOdds, bet.stake)), 0);
     return {
       removedMatches: removedMatches.length,
@@ -436,7 +440,7 @@ export default function App() {
     const { closedAt, exitOdds, finalPnL, ...position } = bet;
     const pnl = finalPnL ?? calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake);
     saveImmediately.current = true;
-    setBankroll((current) => Number((current - pnl).toFixed(2)));
+    if (bet.tag !== 'dry-run') setBankroll((current) => Number((current - pnl).toFixed(2)));
     setClosedBets((items) => items.filter((item) => item.id !== position.id));
     ensurePositionMarket(position);
     setActiveBets((items) => [position, ...items]);

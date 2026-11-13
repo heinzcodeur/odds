@@ -81,7 +81,7 @@ async function getState(connection) {
   const closedBets = [];
   for (const bet of positions) {
     const position = {
-      id: bet.id, type: bet.bet_type, entryOdds: bet.entry_odds, stake: bet.stake, timestamp: bet.opened_at_label,
+      id: bet.id, type: bet.bet_type, tag: bet.tag, entryOdds: bet.entry_odds, stake: bet.stake, timestamp: bet.opened_at_label,
       marketId: bet.market_id, marketName: bet.market_name_snapshot, categoryId: bet.category_id,
       matchId: bet.match_id, matchName: bet.match_name_snapshot || `${bet.home_team} vs ${bet.away_team}`,
       matchDate: bet.match_date_snapshot || bet.match_date || '',
@@ -247,7 +247,7 @@ async function saveState(connection, state) {
       id, type, entryOdds, stake, String(bet.timestamp ?? ''), match.id, marketId, categoryId, name,
       String(bet.matchName ?? `${match.homeTeam} vs ${match.awayTeam}`).slice(0, 130),
       String(bet.matchDate ?? match.matchDate).slice(0, 30), String(bet.matchTime ?? match.matchTime).slice(0, 10),
-      closedAt, exitOdds, finalPnL,
+      closedAt, exitOdds, finalPnL, bet.tag === 'dry-run' ? 'dry-run' : 'prod',
     ]);
   }
   for (const bet of state.activeBets ?? []) collectPosition(bet, null);
@@ -283,7 +283,7 @@ async function saveState(connection, state) {
   await upsert(connection, 'match_markets', 'match_id market_id name_override display_order back_odds lay_odds', marketLinks,
     'name_override display_order back_odds lay_odds');
   await upsert(connection, 'position_categories', 'id name family', [...categoryRecords.values()], 'name family');
-  const positionFields = 'bet_type entry_odds stake opened_at_label match_id market_id category_id market_name_snapshot match_name_snapshot match_date_snapshot match_time_snapshot closed_at_label exit_odds final_pnl';
+  const positionFields = 'bet_type entry_odds stake opened_at_label match_id market_id category_id market_name_snapshot match_name_snapshot match_date_snapshot match_time_snapshot closed_at_label exit_odds final_pnl tag';
   await upsert(connection, 'positions', `id ${positionFields}`, [...positionRecords.values()], positionFields);
   await deleteMissing(connection, 'positions', [...positionRecords.keys()]);
   await connection.execute(`UPDATE settings SET bankroll=?, elapsed_minutes=?, seconds_left=?, is_running=?,

@@ -60,6 +60,7 @@ CREATE TABLE positions (
   closed_at_label TEXT,
   exit_odds DOUBLE,
   final_pnl DOUBLE,
+  tag ENUM('prod', 'dry-run') NOT NULL DEFAULT 'prod',
   FOREIGN KEY (match_id, market_id) REFERENCES match_markets(match_id, market_id),
   FOREIGN KEY (category_id) REFERENCES position_categories(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;

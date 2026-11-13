@@ -78,7 +78,6 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
   const [editingBet, setEditingBet] = useState(null);
   const [detailsId, setDetailsId] = useState(null);
   const detailsBet = detailsId ? bets.find((bet) => bet.id === detailsId) : null;
-  const [pendingReopenId, setPendingReopenId] = useState(null);
   const teams = teamsForBets(bets, matches);
   const markets = [...new Set([
     ...bets.map((bet) => bet.marketName),
@@ -170,35 +169,9 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
         onClick={() => setDetailsId(bet.id)}
         className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"
       />
-      <div className="min-w-0 space-y-1"><div className="text-[10px] text-slate-300">{bet.marketName ?? 'Over 1.5 goals'}</div><div className="text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className="flex items-center gap-2"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>{bet.type === 'BACK' ? 'POUR' : 'CONTRE'}</span><span className="text-xs text-slate-300 font-mono">{bet.entryOdds.toFixed(2)} → {formatExitOdds(bet.exitOdds)}</span><span className="text-[10px] text-slate-500 font-mono">({closedAtLabel(bet)})</span></div><div className="text-[11px] text-slate-500">{bet.type === 'LAY' ? `Liability: ${amounts.liability.toFixed(2)} € · Mise Lay: ${amounts.matchedStake.toFixed(2)} €` : `Mise Back: ${Number(bet.stake).toFixed(2)} €`}</div></div><div className="pointer-events-none relative z-10 flex flex-wrap items-center gap-2"><div className="text-right"><div className={`font-mono text-sm font-bold ${result >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{result >= 0 ? '+' : ''}{result.toFixed(2)} €</div><span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{result < 0 ? 'Perdu' : 'Gagné'} &amp; Sauvegardé</span></div><button
-      type="button"
-      onClick={() => setPendingReopenId(bet.id)}
-      className="pointer-events-auto rounded-lg border border-slate-700 px-3 py-2 text-xs text-indigo-300 hover:bg-slate-800"
-    >
-      Annuler la coupure
-    </button><button type="button" title="Modifier ou supprimer" onClick={() => setEditingBet(bet)} className="pointer-events-auto rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"><Pencil className="h-4 w-4" /></button></div>
-      {pendingReopenId === bet.id && (
-        <div className="relative z-10 w-full rounded-lg border border-slate-700 p-3 text-sm text-slate-200">
-          <p role="status">Rouvrir cette position et annuler le résultat de la coupure ({result.toFixed(2)} €) ?</p>
-          <div className="mt-2 flex justify-end gap-2">
-            <button type="button" onClick={() => setPendingReopenId(null)} className="rounded-lg px-3 py-2 hover:bg-slate-800">
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPendingReopenId(null);
-                onReopen(bet);
-              }}
-              className="rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-500"
-            >
-              Rouvrir la position
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="min-w-0 space-y-1"><div className="text-[10px] text-slate-300">{bet.marketName ?? 'Over 1.5 goals'} <span className="ml-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{bet.tag ?? 'prod'}</span></div><div className="text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className="flex items-center gap-2"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>{bet.type === 'BACK' ? 'POUR' : 'CONTRE'}</span><span className="text-xs text-slate-300 font-mono">{bet.entryOdds.toFixed(2)} → {formatExitOdds(bet.exitOdds)}</span><span className="text-[10px] text-slate-500 font-mono">({closedAtLabel(bet)})</span></div><div className="text-[11px] text-slate-500">{bet.type === 'LAY' ? `Liability: ${amounts.liability.toFixed(2)} € · Mise Lay: ${amounts.matchedStake.toFixed(2)} €` : `Mise Back: ${Number(bet.stake).toFixed(2)} €`}</div></div><div className="pointer-events-none relative z-10 flex flex-wrap items-center gap-2"><div className="text-right"><div className={`font-mono text-sm font-bold ${result >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{result >= 0 ? '+' : ''}{result.toFixed(2)} €</div><span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{result < 0 ? 'Perdu' : 'Gagné'} &amp; Sauvegardé</span></div><button type="button" title="Modifier ou supprimer" onClick={() => setEditingBet(bet)} className="pointer-events-auto rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"><Pencil className="h-4 w-4" /></button></div>
     </article>; })}</div>
     {detailsBet && <PositionDetails bet={detailsBet} result={resultFor(detailsBet)} onClose={() => setDetailsId(null)} />}
-    {editingBet && <PositionEditor bet={editingBet} matches={matches} marketCatalog={marketCatalog} closed onClose={() => setEditingBet(null)} onSave={(changes) => { onEdit(editingBet, changes); setEditingBet(null); }} onDelete={(bet) => { onDelete(bet); setEditingBet(null); }} />}
+    {editingBet && <PositionEditor bet={editingBet} matches={matches} marketCatalog={marketCatalog} closed onReopen={() => { onReopen(editingBet); setEditingBet(null); }} onClose={() => setEditingBet(null)} onSave={(changes) => { onEdit(editingBet, changes); setEditingBet(null); }} onDelete={(bet) => { onDelete(bet); setEditingBet(null); }} />}
   </section>;
 }

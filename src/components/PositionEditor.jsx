@@ -5,7 +5,9 @@ import ParticipantSelect from './ParticipantSelect.jsx';
 
 const inputClass = 'mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100';
 
-export default function PositionEditor({ bet, matches, marketCatalog = [], closed, onSave, onDelete, onClose }) {
+export default function PositionEditor({ bet, matches, marketCatalog = [], closed, onSave, onDelete, onReopen, onClose }) {
+  const [confirmReopen, setConfirmReopen] = React.useState(false);
+  const [tag, setTag] = React.useState(bet.tag ?? 'prod');
   const [type, setType] = React.useState(bet.type);
   const [entryOdds, setEntryOdds] = React.useState(String(bet.entryOdds));
   const [stake, setStake] = React.useState(String(bet.stake));
@@ -50,7 +52,7 @@ export default function PositionEditor({ bet, matches, marketCatalog = [], close
       matchTime: chosenMatch.matchTime,
       marketName: marketOptions.get(marketId),
     } : {};
-    onSave({ type, entryOdds: entry, stake: amount, ...(hasExitQuote ? { exitOdds: exit } : {}), ...matchChange, ...marketChange });
+    onSave({ type, tag, entryOdds: entry, stake: amount, ...(hasExitQuote ? { exitOdds: exit } : {}), ...matchChange, ...marketChange });
   };
   return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="position-editor-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
     <header className="mb-4 flex items-center justify-between"><h3 id="position-editor-title" className="flex items-center gap-2 text-lg font-bold text-slate-100"><Pencil className="h-4 w-4 text-amber-300" />Modifier la position</h3><button type="button" onClick={onClose} aria-label="Fermer" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800"><X className="h-5 w-5" /></button></header>
@@ -86,6 +88,28 @@ export default function PositionEditor({ bet, matches, marketCatalog = [], close
           <p role="status" className="text-xs text-amber-300 sm:col-span-2">Ce match a atteint sa limite de marchés. Choisis un marché déjà associé au match.</p>
         )}
       </fieldset><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-400">Cote d’entrée<input type="number" min="1.01" step="0.01" value={entryOdds} onChange={(event) => setEntryOdds(event.target.value)} className={inputClass} /></label><label className="text-xs text-slate-400">Mise / stake (€)<input type="number" min="0.01" step="0.01" value={stake} onChange={(event) => setStake(event.target.value)} className={inputClass} /></label>{hasExitQuote && <label className="text-xs text-slate-400">Cote de sortie<input type="number" min="1.01" step="0.01" value={exitOdds} onChange={(event) => setExitOdds(event.target.value)} className={inputClass} /></label>}</div>
+      <label className="block text-xs text-slate-400">
+        Tag de la position
+        <select value={tag} onChange={(event) => setTag(event.target.value)} className={inputClass}>
+          <option value="prod">prod</option>
+          <option value="dry-run">dry-run</option>
+        </select>
+      </label>
+      {closed && onReopen && (
+        confirmReopen ? (
+          <div className="rounded-lg border border-slate-700 p-3 text-sm text-slate-200">
+            <p>Rouvrir cette position et annuler le résultat de la coupure ?</p>
+            <div className="mt-2 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmReopen(false)} className="rounded-lg px-3 py-2 hover:bg-slate-800">Annuler</button>
+              <button type="button" onClick={onReopen} className="rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-500">Rouvrir la position</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setConfirmReopen(true)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-indigo-300 hover:bg-slate-800">
+            Annuler la coupure
+          </button>
+        )
+      )}
       {confirmDelete ? <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">Supprimer définitivement cette position ?<div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Annuler</button><button type="button" onClick={() => onDelete(bet)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">Supprimer</button></div></div> : <footer className="flex justify-between border-t border-slate-800 pt-4"><button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />Supprimer</button><div className="flex gap-2"><button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Annuler</button><button type="submit" disabled={!chosenMatch || !canUseMarket(marketId)} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40">Enregistrer</button></div></footer>}
     </form>
   </section></div>;
