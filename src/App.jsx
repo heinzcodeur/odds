@@ -162,6 +162,13 @@ export default function App() {
       .catch((error) => setSaveStatus(`Base indisponible : ${error.message}`));
   }, []);
 
+  // Save periodic clock progress every 30 seconds and use the latest tick in other saves.
+  const clockCheckpoint = Math.floor((elapsedMinutes * 60 + 0.000001) / 30);
+  const clockState = useRef();
+  useEffect(() => {
+    clockState.current = { elapsedMinutes, secondsLeft };
+  }, [elapsedMinutes, secondsLeft]);
+
   useEffect(() => () => window.clearTimeout(saveTimeout.current), []);
 
   useEffect(() => {
@@ -195,7 +202,7 @@ export default function App() {
         const response = await fetch('/api/state', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams: [homeTeam, awayTeam], activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
+          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, ...clockState.current, isRunning, betType, entryOdds, stake, teams: [homeTeam, awayTeam], activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
         });
         if (response.status === 409) saveConflict.current = true;
         const result = await response.json();
@@ -215,7 +222,7 @@ export default function App() {
         setSaveStatus(`Erreur de sauvegarde : ${error.message}`);
       }
     }
-  }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, homeTeam, awayTeam, activeBets, closedBets]);
+  }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, clockCheckpoint, isRunning, betType, entryOdds, stake, homeTeam, awayTeam, activeBets, closedBets]);
 
   useEffect(() => {
     if (!lastIncrease) return undefined;
@@ -266,12 +273,16 @@ export default function App() {
   };
 
   const closePosition = (bet, exitOdds = closeOddsFor(bet)) => {
-    if (saveConflict.current) return;
+    if (saveConflict.current) {
+      setSaveStatus('Coupure bloquée : les données ont changé sur un autre écran. Rechargez la page.');
+      return false;
+    }
     saveImmediately.current = true;
     const finalPnL = calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake);
     if (bet.tag !== 'dry-run') setBankroll((current) => Number((current + finalPnL).toFixed(2)));
     setClosedBets((bets) => [{ ...bet, exitOdds, finalPnL, closedAt: new Date().toISOString() }, ...bets]);
     setActiveBets((bets) => bets.filter((item) => item.id !== bet.id));
+    return true;
   };
 
   const ensurePositionMarket = (position) => {

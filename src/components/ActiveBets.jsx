@@ -7,6 +7,7 @@ import PositionEditor from './PositionEditor.jsx';
 export default function ActiveBets({ bets, matches = [], marketCatalog, getExitOdds, onClose, onCloseAll, onSelectPosition, pnlFor, onEdit, onDelete }) {
   const [teamFilter, setTeamFilter] = useState('all');
   const [editingBet, setEditingBet] = useState(null);
+  const [closeError, setCloseError] = useState(false);
   const [pendingClose, setPendingClose] = useState(null);
   const pendingBet = pendingClose ? bets.find((bet) => bet.id === pendingClose.id) : null;
   useEffect(() => {
@@ -52,7 +53,7 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
     {pendingBet && (
       <dialog
         ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
-        onClose={() => setPendingClose(null)}
+        onClose={() => { setPendingClose(null); setCloseError(false); }}
         aria-labelledby="close-position-title"
         aria-describedby="close-position-details"
         className="m-auto w-[calc(100%_-_2rem)] max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl backdrop:bg-black/60"
@@ -65,13 +66,18 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
               ? `Gain total de ${pendingPnL.toFixed(2)} €.`
               : `Cashout à ${pendingClose.exitOdds.toFixed(2)} · résultat ${pendingPnL >= 0 ? '+' : ''}${pendingPnL.toFixed(2)} €.`}
         </p>
+        {closeError && <p role="alert" className="mt-3 text-sm text-rose-300">Les données ont changé sur un autre écran. Rechargez la page avant de couper cette position.</p>}
         <form method="dialog" className="mt-5 flex flex-wrap justify-end gap-2">
           <button type="submit" className="rounded-lg px-3 py-2 text-xs hover:bg-slate-800">Annuler</button>
           <button
             type="button"
             onClick={() => {
+              if (onClose(pendingBet, pendingClose.exitOdds) === false) {
+                setCloseError(true);
+                return;
+              }
+              setCloseError(false);
               setPendingClose(null);
-              onClose(pendingBet, pendingClose.exitOdds);
             }}
             className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
           >
