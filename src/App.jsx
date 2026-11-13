@@ -237,6 +237,10 @@ export default function App() {
     && (bet.matchId ?? 'legacy-match') === selectedMatchId);
 
   const placeBet = (tag = 'prod') => {
+    if (saveConflict.current) {
+      setBetError('Sauvegarde bloquée par un conflit. Rechargez la page avant de créer une position.');
+      return { ok: false };
+    }
     const parsedOdds = Number(entryOdds);
     const parsedStake = Number(stake);
     setBetError('');
@@ -399,6 +403,7 @@ export default function App() {
 
   const saveCurrentMatch = (changes) => setMatches((items) => items.map((item) => item.id === selectedMatchId ? { ...item, ...changes } : item));
   const createMatch = (details = {}) => {
+    if (saveConflict.current) return;
     const id = details.sourceEventId ? `fixture-${details.sourceEventId}` : `match-${Date.now()}`;
     const newMarkets = markets.map((item) => ({ ...item, backOdds: 1.25, layOdds: 1.26 }));
     const next = {
