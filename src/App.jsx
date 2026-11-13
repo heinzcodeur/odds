@@ -30,7 +30,9 @@ export default function App() {
     ...matches.flatMap(({ homeTeam, awayTeam }) => [homeTeam, awayTeam]),
   ].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
   const currentMatch = matches.find((item) => item.id === selectedMatchId) ?? matches[0];
-  const teams = [currentMatch?.homeTeam ?? '', currentMatch?.awayTeam ?? ''];
+  const homeTeam = currentMatch?.homeTeam ?? '';
+  const awayTeam = currentMatch?.awayTeam ?? '';
+  const teams = [homeTeam, awayTeam];
   const market = selectedMarket.name;
   const backOdds = Number(selectedMarket.backOdds);
   const layOdds = Number(selectedMarket.layOdds);
@@ -193,7 +195,7 @@ export default function App() {
         const response = await fetch('/api/state', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams, activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
+          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams: [homeTeam, awayTeam], activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
         });
         if (response.status === 409) saveConflict.current = true;
         const result = await response.json();
@@ -213,7 +215,7 @@ export default function App() {
         setSaveStatus(`Erreur de sauvegarde : ${error.message}`);
       }
     }
-  }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, teams, activeBets, closedBets]);
+  }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, elapsedMinutes, secondsLeft, isRunning, betType, entryOdds, stake, homeTeam, awayTeam, activeBets, closedBets]);
 
   useEffect(() => {
     if (!lastIncrease) return undefined;
