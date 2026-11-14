@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { createPool } from 'mysql2/promise';
-import { calculatePnL, participantNameKey, TOTAL_WIN_EXIT_ODDS } from './src/utils/betting.js';
+import { MATCH_SPORTS, calculatePnL, participantNameKey, TOTAL_WIN_EXIT_ODDS } from './src/utils/betting.js';
 
 config({ path: fileURLToPath(new URL('./.env', import.meta.url)) });
 
@@ -52,7 +52,7 @@ async function getState(connection) {
   const [[settings]] = await connection.query('SELECT * FROM settings WHERE id=1');
   if (!settings) throw new Error('Importez les données OddsBoost dans MySQL.');
 
-  const [matches] = await connection.query(`SELECT m.id, m.home_team_id AS homeTeamId,
+  const [matches] = await connection.query(`SELECT m.id, m.sport, m.home_team_id AS homeTeamId,
     m.away_team_id AS awayTeamId, h.name AS homeTeam, a.name AS awayTeam,
     COALESCE(m.match_date, '') AS matchDate, COALESCE(TIME_FORMAT(m.match_time, '%H:%i'), '') AS matchTime
     FROM matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
@@ -81,7 +81,7 @@ async function getState(connection) {
   const closedBets = [];
   for (const bet of positions) {
     const position = {
-      id: bet.id, type: bet.bet_type, tag: bet.tag, entryOdds: bet.entry_odds, stake: bet.stake, timestamp: bet.opened_at_label,
+      id: bet.id, type: bet.bet_type, tag: bet.tag, targetProfit: bet.target_profit ?? null, entryOdds: bet.entry_odds, stake: bet.stake, timestamp: bet.opened_at_label,
       marketId: bet.market_id, marketName: bet.market_name_snapshot, categoryId: bet.category_id,
       matchId: bet.match_id, matchName: bet.match_name_snapshot || `${bet.home_team} vs ${bet.away_team}`,
       matchDate: bet.match_date_snapshot || bet.match_date || '',
@@ -164,6 +164,7 @@ async function saveState(connection, state) {
       homeTeam: String(item.homeTeam ?? '').trim().slice(0, 60),
       awayTeam: String(item.awayTeam ?? '').trim().slice(0, 60),
       matchDate: String(item.matchDate ?? '').slice(0, 10),
+      sport: Object.hasOwn(MATCH_SPORTS, item.sport) ? item.sport : null,
       matchTime: String(item.matchTime ?? '').slice(0, 10),
       markets: normalizeMarkets(item.markets),
     }];
@@ -205,13 +206,13 @@ async function saveState(connection, state) {
   for (const match of matches.values()) {
     const homeTeamId = await ensureTeam(match.homeTeam, match.homeTeamId);
     const awayTeamId = await ensureTeam(match.awayTeam, match.awayTeamId);
-    matchRecords.push([match.id, homeTeamId, awayTeamId, match.matchDate || null, match.matchTime || null, now]);
+    matchRecords.push([match.id, homeTeamId, awayTeamId, match.matchDate || null, match.matchTime || null, match.sport, now]);
     for (const [order, market] of match.markets.entries()) {
       marketRecords.set(marketKey(match.id, market.id), [match.id, market.id, market.name, order, market.backOdds, market.layOdds]);
     }
   }
-  await upsert(connection, 'matches', 'id home_team_id away_team_id match_date match_time created_at', matchRecords,
-    'home_team_id away_team_id match_date match_time');
+  await upsert(connection, 'matches', 'id home_team_id away_team_id match_date match_time sport created_at', matchRecords,
+    'home_team_id away_team_id match_date match_time sport');
 
   const categoryRecords = new Map();
   const positionRecords = new Map();
@@ -248,6 +249,7 @@ async function saveState(connection, state) {
       String(bet.matchName ?? `${match.homeTeam} vs ${match.awayTeam}`).slice(0, 130),
       String(bet.matchDate ?? match.matchDate).slice(0, 30), String(bet.matchTime ?? match.matchTime).slice(0, 10),
       closedAt, exitOdds, finalPnL, bet.tag === 'dry-run' ? 'dry-run' : 'prod',
+      validNumber(bet.targetProfit, null, 0.01),
     ]);
   }
   for (const bet of state.activeBets ?? []) collectPosition(bet, null);
@@ -283,7 +285,7 @@ async function saveState(connection, state) {
   await upsert(connection, 'match_markets', 'match_id market_id name_override display_order back_odds lay_odds', marketLinks,
     'name_override display_order back_odds lay_odds');
   await upsert(connection, 'position_categories', 'id name family', [...categoryRecords.values()], 'name family');
-  const positionFields = 'bet_type entry_odds stake opened_at_label match_id market_id category_id market_name_snapshot match_name_snapshot match_date_snapshot match_time_snapshot closed_at_label exit_odds final_pnl tag';
+  const positionFields = 'bet_type entry_odds stake opened_at_label match_id market_id category_id market_name_snapshot match_name_snapshot match_date_snapshot match_time_snapshot closed_at_label exit_odds final_pnl tag target_profit';
   await upsert(connection, 'positions', `id ${positionFields}`, [...positionRecords.values()], positionFields);
   await deleteMissing(connection, 'positions', [...positionRecords.keys()]);
   await connection.execute(`UPDATE settings SET bankroll=?, elapsed_minutes=?, seconds_left=?, is_running=?,

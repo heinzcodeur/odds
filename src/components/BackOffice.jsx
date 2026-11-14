@@ -1,7 +1,10 @@
+import { MATCH_SPORTS } from '../utils/betting.js';
 import React, { useState } from 'react';
 import { X, Trash2, Pencil, Save, Plus, Database, Users, Calendar, Layers, Settings } from 'lucide-react';
 import { defaultMatchSchedule, formatMatchDate } from '../utils/betting.js';
 import ParticipantSelect from './ParticipantSelect.jsx';
+
+import SportSelect from './SportSelect.jsx';
 
 export default function BackOffice({ matches, onUpdateMatches, marketCatalog, onSaveMarket, initialTab, participants, onAddParticipant, onCreateMatch, getDeletionPlan, onDeleteItem, saveStatus, bankroll, onUpdateBankroll, onClose }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -161,7 +164,7 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
                   <thead className="bg-slate-800/50 text-slate-400 uppercase text-[10px] font-bold tracking-wider">
                     <tr>
                       <th className="px-4 py-3">Équipes</th>
-                      <th className="px-4 py-3">Date & Heure</th>
+                      <th className="px-4 py-3">Date, heure et sport</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -196,9 +199,10 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
                                 value={matchDraft.matchTime}
                                 onChange={e => setMatchDraft({ ...matchDraft, matchTime: e.target.value })}
                               />
+                            <SportSelect value={matchDraft.sport} onChange={(sport) => setMatchDraft({ ...matchDraft, sport })} />
                             </div>
                           ) : (
-                            <span>{formatMatchDate(match.matchDate)} {match.matchTime}</span>
+                            <span>{formatMatchDate(match.matchDate)} {match.matchTime} · {MATCH_SPORTS[match.sport] ?? 'Sport non renseigné'}</span>
                           )}
                         </td>
                         <td className="px-4 py-4 text-right">

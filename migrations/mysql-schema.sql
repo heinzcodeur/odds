@@ -10,6 +10,7 @@ CREATE TABLE matches (
   away_team_id VARCHAR(191) NOT NULL,
   match_date DATE,
   match_time TIME,
+  sport ENUM('football', 'basketball', 'tennis', 'other') DEFAULT NULL,
   created_at DATETIME NOT NULL,
   FOREIGN KEY (home_team_id) REFERENCES teams(id),
   FOREIGN KEY (away_team_id) REFERENCES teams(id)
@@ -60,6 +61,7 @@ CREATE TABLE positions (
   closed_at_label TEXT,
   exit_odds DOUBLE,
   final_pnl DOUBLE,
+  target_profit DOUBLE DEFAULT NULL,
   tag ENUM('prod', 'dry-run') NOT NULL DEFAULT 'prod',
   FOREIGN KEY (match_id, market_id) REFERENCES match_markets(match_id, market_id),
   FOREIGN KEY (category_id) REFERENCES position_categories(id)

@@ -98,3 +98,10 @@ export function matchesHistoryPeriod(bet, from, to) {
 export function participantNameKey(name) {
   return name.trim().normalize('NFC').toLocaleLowerCase('fr');
 }
+
+export const MATCH_SPORTS = Object.freeze({
+  football: 'Football',
+  basketball: 'Basket',
+  tennis: 'Tennis',
+  other: 'Autre',
+});

@@ -23,8 +23,8 @@ export default function TodayMatches({ matches, selectedMatchId, onSelectMatch }
     .sort((a, b) => a.matchTime.localeCompare(b.matchTime));
 
   return (
-    <section className="shrink-0 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
-      <h3 className="mb-3 text-base font-semibold text-slate-200">Matchs du jour</h3>
+    <section id="today-matches" tabIndex={-1} aria-labelledby="today-matches-title" className="scroll-mt-32 shrink-0 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+      <h3 id="today-matches-title" className="mb-3 text-base font-semibold text-slate-200">Matchs du jour</h3>
       {upcoming.length ? (
         <ul className="max-h-44 space-y-2 overflow-y-auto">
           {upcoming.map((match) => (

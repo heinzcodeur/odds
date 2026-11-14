@@ -1,0 +1,1 @@
+ALTER TABLE positions ADD COLUMN target_profit DOUBLE DEFAULT NULL;

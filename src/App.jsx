@@ -66,7 +66,7 @@ export default function App() {
 
     const adjustedBackOdds = changes.backOdds;
     if (!previous || !Number.isFinite(adjustedBackOdds) || adjustedBackOdds === Number(previous.backOdds)) return;
-    const reachedMaximum = matchingLayBets.filter((bet) =>
+    const reachedMaximum = matchingLayBets.filter((bet) => !bet.targetProfit &&
       calculatePnL(bet.type, bet.entryOdds, adjustedBackOdds, bet.stake) >= maxPositionProfit(bet.type, bet.entryOdds, bet.stake));
     if (!reachedMaximum.length) return;
 
@@ -288,7 +288,9 @@ export default function App() {
       return { ok: false };
     }
     saveImmediately.current = true;
-    setActiveBets((bets) => [{ id: `${Date.now()}-${Math.random()}`, type: betType, tag, entryOdds: parsedOdds, stake: parsedStake, marketId: selectedMarketId, categoryId: selectedMarketId, marketName: market, matchId: selectedMatchId, matchName: `${teams[0]} vs ${teams[1]}`, matchDate: currentMatch?.matchDate ?? '', matchTime: currentMatch?.matchTime ?? '', timestamp: timestamp() }, ...bets]);
+    const maxProfitCents = Math.round(maxPositionProfit(betType, parsedOdds, parsedStake) * 100);
+    const targetProfit = maxProfitCents > 0 ? Math.ceil(maxProfitCents * 2 / 5) / 100 : null;
+    setActiveBets((bets) => [{ id: `${Date.now()}-${Math.random()}`, type: betType, tag, targetProfit, entryOdds: parsedOdds, stake: parsedStake, marketId: selectedMarketId, categoryId: selectedMarketId, marketName: market, matchId: selectedMatchId, matchName: `${teams[0]} vs ${teams[1]}`, matchDate: currentMatch?.matchDate ?? '', matchTime: currentMatch?.matchTime ?? '', timestamp: timestamp() }, ...bets]);
     return { ok: true };
   };
 
@@ -445,6 +447,7 @@ export default function App() {
       awayTeam: details.awayTeam ?? 'Équipe extérieure',
       matchDate: details.matchDate ?? '',
       matchTime: details.matchTime ?? '',
+      sport: details.sport ?? 'football',
       markets: newMarkets,
     };
     saveImmediately.current = true;
@@ -510,7 +513,14 @@ export default function App() {
         </form>
       </dialog>
     )}
-    <Header bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')} />
+    <Header bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')}
+      onOpenHistory={() => setHistoryOpen(true)}
+      onShowTodayMatches={() => {
+        const section = document.getElementById('today-matches');
+        section?.focus({ preventScroll: true });
+        section?.scrollIntoView({ block: 'start' });
+      }}
+    />
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"><p role="status" aria-live="polite" className="mb-3 text-right text-[11px] text-slate-500">{saveStatus}</p><div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-6 space-y-6">
         <MatchCard participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={marketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={markets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatch={chooseDailyMatch} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
@@ -518,7 +528,11 @@ export default function App() {
       </div>
       <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">
         <TodayMatches matches={matches} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} />
-        <ActiveBets bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => activeBets.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
+        <ActiveBets onSetTarget={(id, targetProfit) => {
+          if (saveConflict.current) return;
+          saveImmediately.current = true;
+          setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, targetProfit } : bet));
+        }} bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => activeBets.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
         <button type="button" onClick={() => setHistoryOpen(true)} className="w-full shrink-0 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-slate-200 shadow-xl transition hover:border-emerald-500/40 hover:bg-slate-800/80">
           <span className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" />Consulter l’historique</span>
           <span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs text-slate-400">{closedBets.length}</span>
