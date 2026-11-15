@@ -1,3 +1,4 @@
+import { participantsForSport } from '../utils/betTeams.js';
 import { MATCH_SPORTS } from '../utils/betting.js';
 import React, { useState } from 'react';
 import { X, Trash2, Pencil, Save, Plus, Database, Users, Calendar, Layers, Settings } from 'lucide-react';
@@ -47,7 +48,7 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
   };
 
   const saveMatchEdit = () => {
-    if (!participants.includes(matchDraft.homeTeam) || !participants.includes(matchDraft.awayTeam)
+    if ((editingMatchId === 'new' && !matchDraft.sport) || !participants.includes(matchDraft.homeTeam) || !participants.includes(matchDraft.awayTeam)
       || matchDraft.homeTeam === matchDraft.awayTeam) return;
     if (editingMatchId === 'new') onCreateMatch(matchDraft);
     else onUpdateMatches(matches.map(m => m.id === editingMatchId ? matchDraft : m));
@@ -173,10 +174,16 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
                       <tr key={match.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="px-4 py-4">
                           {editingMatchId === match.id ? (
-                            <div className="flex items-start gap-2">
-                              <ParticipantSelect onCreate={editingMatchId === 'new' ? onAddParticipant : undefined} label="Participant à domicile" participants={participants} value={matchDraft.homeTeam} otherParticipant={matchDraft.awayTeam} onChange={(name) => setMatchDraft({ ...matchDraft, homeTeam: name })} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs w-32 text-white" />
+                            <div className="space-y-2">
+                              {editingMatchId === 'new' && <SportSelect value={matchDraft.sport} placeholder="Choisir un sport"
+                                onChange={(sport) => setMatchDraft({ ...matchDraft, sport, homeTeam: '', awayTeam: '' })} />}
+                              {(editingMatchId !== 'new' || matchDraft.sport) && (
+                              <div key={matchDraft.sport} className="flex items-start gap-2">
+                              <ParticipantSelect onCreate={editingMatchId === 'new' ? (name) => participants.includes(name) ? '' : onAddParticipant(name) : undefined} label="Participant à domicile" participants={editingMatchId === 'new' ? participantsForSport(participants, matches, matchDraft.sport, [matchDraft.homeTeam, matchDraft.awayTeam]) : participants} value={matchDraft.homeTeam} otherParticipant={matchDraft.awayTeam} onChange={(name) => setMatchDraft({ ...matchDraft, homeTeam: name })} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs w-32 text-white" />
                               <span className="text-slate-600 text-[10px]">VS</span>
-                              <ParticipantSelect onCreate={editingMatchId === 'new' ? onAddParticipant : undefined} label="Participant visiteur" participants={participants} value={matchDraft.awayTeam} otherParticipant={matchDraft.homeTeam} onChange={(name) => setMatchDraft({ ...matchDraft, awayTeam: name })} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs w-32 text-white" />
+                              <ParticipantSelect onCreate={editingMatchId === 'new' ? (name) => participants.includes(name) ? '' : onAddParticipant(name) : undefined} label="Participant visiteur" participants={editingMatchId === 'new' ? participantsForSport(participants, matches, matchDraft.sport, [matchDraft.homeTeam, matchDraft.awayTeam]) : participants} value={matchDraft.awayTeam} otherParticipant={matchDraft.homeTeam} onChange={(name) => setMatchDraft({ ...matchDraft, awayTeam: name })} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs w-32 text-white" />
+                              </div>
+                              )}
                             </div>
                           ) : (
                             <div className="font-semibold text-slate-100">
@@ -199,7 +206,7 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
                                 value={matchDraft.matchTime}
                                 onChange={e => setMatchDraft({ ...matchDraft, matchTime: e.target.value })}
                               />
-                            <SportSelect value={matchDraft.sport} onChange={(sport) => setMatchDraft({ ...matchDraft, sport })} />
+                            {editingMatchId !== 'new' && <SportSelect value={matchDraft.sport} onChange={(sport) => setMatchDraft({ ...matchDraft, sport })} />}
                             </div>
                           ) : (
                             <span>{formatMatchDate(match.matchDate)} {match.matchTime} · {MATCH_SPORTS[match.sport] ?? 'Sport non renseigné'}</span>
@@ -211,7 +218,7 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
                               <>
                                 <button
                                   onClick={saveMatchEdit}
-                                  disabled={!matchDraft.homeTeam || !matchDraft.awayTeam || matchDraft.homeTeam === matchDraft.awayTeam}
+                                  disabled={(editingMatchId === 'new' && !matchDraft.sport) || !matchDraft.homeTeam || !matchDraft.awayTeam || matchDraft.homeTeam === matchDraft.awayTeam}
                                   className="p-1.5 bg-emerald-600 rounded text-white hover:bg-emerald-500 disabled:opacity-40"
                                   title="Enregistrer"
                                 >

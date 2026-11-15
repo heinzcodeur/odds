@@ -1,3 +1,4 @@
+import { defaultMarketForSport, marketFitsSport } from './utils/marketSports.js';
 import React, { useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import MatchCard from './components/MatchCard.jsx';
@@ -10,7 +11,13 @@ import { History, X } from 'lucide-react';
 import useMatchTimer from './hooks/useMatchTimer.js';
 import { calculatePnL, maxPositionProfit, participantNameKey, timestamp } from './utils/betting.js';
 
-const DEFAULT_MARKET = { id: 'default', name: 'Over 1.5 goals', backOdds: 1.25, layOdds: 1.26 };
+const DEFAULT_MARKET = defaultMarketForSport('football');
+
+function marketsForMatch(match, fallback = []) {
+  const markets = match.markets?.length ? match.markets : match.sport ? [] : fallback;
+  return markets.some(({ id }) => marketFitsSport(id, match.sport))
+    ? markets : [...markets, defaultMarketForSport(match.sport)];
+}
 
 export default function App({ onLogout, logoutPending }) {
   const [confirmExit, setConfirmExit] = useState(false);
@@ -50,6 +57,21 @@ export default function App({ onLogout, logoutPending }) {
     ...matches.flatMap(({ homeTeam, awayTeam }) => [homeTeam, awayTeam]),
   ].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
   const currentMatch = matches.find((item) => item.id === selectedMatchId) ?? matches[0];
+  const sport = currentMatch?.sport;
+  const availableMarkets = markets.filter(({ id }) => marketFitsSport(id, sport));
+  const availableMarketCatalog = sport ? marketCatalog.filter(({ id }) =>
+    marketFitsSport(id, sport) && matches.some((match) =>
+      match.sport === sport && match.markets?.some((item) => item.id === id)
+    )) : marketCatalog;
+
+  useEffect(() => {
+    if (!currentMatch || availableMarkets.some(({ id }) => id === selectedMarketId)) return;
+    const next = marketsForMatch({ ...currentMatch, markets });
+    marketsRef.current = next;
+    setMarkets(next);
+    setSelectedMarketId(next.find(({ id }) => marketFitsSport(id, sport)).id);
+  }, [sport, selectedMatchId, markets, selectedMarketId]);
+
   const homeTeam = currentMatch?.homeTeam ?? '';
   const awayTeam = currentMatch?.awayTeam ?? '';
   const teams = [homeTeam, awayTeam];
@@ -161,8 +183,9 @@ export default function App({ onLogout, logoutPending }) {
         const chosenMatchId = loadedMatches.some((item) => item.id === state.selectedMatchId)
           ? state.selectedMatchId : latestMatch?.id ?? loadedMatches[0].id;
         const activeMatch = loadedMatches.find((item) => item.id === chosenMatchId) ?? loadedMatches[0];
-        const chosenMarkets = Array.isArray(activeMatch.markets) && activeMatch.markets.length ? activeMatch.markets : loadedMarkets;
-        const chosenMarketId = chosenMarkets.some((item) => item.id === state.selectedMarketId) ? state.selectedMarketId : chosenMarkets[0].id;
+        const chosenMarkets = marketsForMatch(activeMatch, loadedMarkets);
+        const compatibleMarkets = chosenMarkets.filter(({ id }) => marketFitsSport(id, activeMatch.sport));
+        const chosenMarketId = compatibleMarkets.find(({ id }) => id === state.selectedMarketId)?.id ?? compatibleMarkets[0].id;
         marketsRef.current = chosenMarkets;
         setMatches(loadedMatches.map((item) => item.id === chosenMatchId ? { ...item, markets: chosenMarkets } : item));
         setSelectedMatchId(chosenMatchId);
@@ -440,7 +463,7 @@ export default function App({ onLogout, logoutPending }) {
   const createMatch = (details = {}) => {
     if (saveConflict.current) return;
     const id = details.sourceEventId ? `fixture-${details.sourceEventId}` : `match-${Date.now()}`;
-    const newMarkets = markets.map((item) => ({ ...item, backOdds: 1.25, layOdds: 1.26 }));
+    const newMarkets = [defaultMarketForSport(details.sport ?? 'football')];
     const next = {
       id,
       homeTeam: details.homeTeam ?? 'Équipe domicile',
@@ -461,10 +484,11 @@ export default function App({ onLogout, logoutPending }) {
   const selectMatch = (id, preferredMarketId = selectedMarketId) => {
     const nextMatch = matches.find((item) => item.id === id);
     if (!nextMatch) return;
-    const nextMarkets = Array.isArray(nextMatch.markets) && nextMatch.markets.length ? nextMatch.markets : markets.map((item) => ({ ...item, backOdds: 1.25, layOdds: 1.26 }));
-    const nextMarket = nextMarkets.find((item) => item.id === preferredMarketId)
-      ?? nextMarkets.find((item) => item.id === selectedMarketId)
-      ?? nextMarkets[0];
+    const nextMarkets = marketsForMatch(nextMatch, [DEFAULT_MARKET]);
+    const compatibleMarkets = nextMarkets.filter((item) => marketFitsSport(item.id, nextMatch.sport));
+    const nextMarket = compatibleMarkets.find((item) => item.id === preferredMarketId)
+      ?? compatibleMarkets.find((item) => item.id === selectedMarketId)
+      ?? compatibleMarkets[0];
     setMatches((items) => items.map((item) => item.id === id ? { ...item, markets: nextMarkets } : item));
     setSelectedMatchId(id);
     setMarkets(nextMarkets);
@@ -523,7 +547,7 @@ export default function App({ onLogout, logoutPending }) {
     />
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"><p role="status" aria-live="polite" className="mb-3 text-right text-[11px] text-slate-500">{saveStatus}</p><div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-6 space-y-6">
-        <MatchCard participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={marketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={markets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatch={chooseDailyMatch} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
+        <MatchCard participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={availableMarketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={availableMarkets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatch={chooseDailyMatch} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
         <BetForm betType={betType} setBetType={setBetType} entryOdds={entryOdds} cashoutOdds={betType === 'BACK' ? layOdds : backOdds} stake={stake} setStake={setStake} error={betError} notice={betNotice} matchName={`${teams[0]} vs ${teams[1]}`} marketName={market} onPlace={placeBet} />
       </div>
       <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">

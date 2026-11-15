@@ -10,3 +10,14 @@ export function teamsForBets(bets, matches = []) {
     ...bets.flatMap((bet) => teamsForBet(bet, matches)),
   ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
+
+export function participantsForSport(participants, matches, sport, selected = []) {
+  const associated = new Set(selected);
+  for (const match of matches) {
+    if (match.sport === sport) {
+      associated.add(match.homeTeam);
+      associated.add(match.awayTeam);
+    }
+  }
+  return participants.filter((name) => associated.has(name));
+}
