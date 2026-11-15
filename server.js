@@ -7,7 +7,7 @@ import { closeDatabase, createApiMiddleware } from './database.js';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const dist = join(root, 'dist');
 const api = createApiMiddleware();
-const contentTypes = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const contentTypes = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
 const server = createServer((request, response) => {
   api(request, response, async () => {
