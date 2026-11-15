@@ -8,6 +8,8 @@ import PositionEditor from './PositionEditor.jsx';
 export default function ActiveBets({ bets, matches = [], marketCatalog, getExitOdds, onClose, onCloseAll, onSelectPosition, pnlFor, onEdit, onDelete, onSetTarget }) {
   const [sportFilter, setSportFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
+  const [selectedPositionId, setSelectedPositionId] = useState(null);
+  const selectedPosition = bets.find((bet) => bet.id === selectedPositionId);
   const [editingBet, setEditingBet] = useState(null);
   const [closeError, setCloseError] = useState(false);
   const [pendingClose, setPendingClose] = useState(null);
@@ -27,18 +29,19 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
   const visibleBets = bets.filter((bet) =>
     (sportFilter === 'all' || (sportsByMatch.get(bet.matchId) || 'unknown') === sportFilter)
     && (teamFilter === 'all' || teamsForBet(bet, matches).includes(teamFilter)));
-  return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl lg:flex lg:min-h-0 lg:flex-col"><div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-base font-semibold text-slate-200 flex items-center gap-2"><Layers className="w-5 h-5 text-indigo-400" />Positions Actives ({visibleBets.length})</h3><div className="flex flex-wrap items-center gap-2"><SportFilter value={sportFilter} onChange={setSportFilter} />{teams.length > 0 && <select aria-label="Filtrer les positions actives par équipe" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="max-w-44 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Toutes les équipes</option>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select>}{bets.length > 1 && <button onClick={onCloseAll} className="text-xs font-medium px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition">Tout Couper</button>}</div></div>
-    {bets.length === 0 && <div className="text-center py-8 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position active.<br />Ouvrez un pari à gauche pour suivre le Cashout en direct.</div>}
-    {visibleBets.length === 0 && bets.length > 0 && <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position ne correspond aux filtres.</div>}
-    <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto">{visibleBets.map((bet) => { const pnl = pnlFor(bet); const amounts = getPositionAmounts(bet.type, bet.entryOdds, bet.stake); const exitOdds = getExitOdds(bet);
+  const renderPosition = (bet, expanded = false) => {
+    const pnl = pnlFor(bet);
+    const amounts = getPositionAmounts(bet.type, bet.entryOdds, bet.stake);
+    const exitOdds = getExitOdds(bet);
       return <article key={bet.id} className="relative bg-slate-950 border border-slate-800/90 rounded-xl p-4 transition hover:border-slate-700">
-      <button
+      {!expanded && <button
         type="button"
-        aria-label={`Afficher le match de la position : ${bet.matchName || 'Match'}${bet.marketName ? ` · ${bet.marketName}` : ''}`}
-        onClick={() => onSelectPosition(bet)}
+        aria-haspopup="dialog"
+        aria-label={`Voir les détails de la position : ${bet.matchName || 'Match'}${bet.marketName ? ` · ${bet.marketName}` : ''}`}
+        onClick={() => setSelectedPositionId(bet.id)}
         className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"
-      />
-      <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><span className={`text-xs font-bold px-2 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>{bet.type === 'BACK' ? 'POUR (Back)' : 'CONTRE (Lay)'}</span><span className="text-[11px] text-slate-500 font-mono">{bet.timestamp}</span></div><div className={`font-mono text-sm font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} €</div></div><div className="mb-1 text-[10px] font-medium text-slate-300">{bet.marketName ?? 'Over 1.5 goals'} <span className="ml-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{bet.tag ?? 'prod'}</span></div><div className="mb-2 text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs text-slate-400 mb-3 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/60"><div>Cote entrée:<span className="font-mono text-slate-200 font-medium block text-sm">{bet.entryOdds.toFixed(2)}</span></div><div>Cote cashout:<span className="font-mono text-amber-400 font-medium block text-sm">{exitOdds.toFixed(2)}</span></div><div>{bet.type === 'LAY' ? 'Mise Lay:' : 'Mise Back:'}<span className="font-mono text-slate-200 font-medium block text-sm">{amounts.matchedStake.toFixed(2)} €</span></div><div>Liability:<span className="font-mono text-rose-300 font-medium block text-sm">{bet.type === 'LAY' ? `${amounts.liability.toFixed(2)} €` : '—'}</span></div>
+      />}
+      <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><span className={`text-xs font-bold px-2 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>{bet.type === 'BACK' ? 'POUR (Back)' : 'CONTRE (Lay)'}</span><span className="text-[11px] text-slate-500 font-mono">{bet.timestamp}</span></div><div className={`font-mono text-sm font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} €</div></div><div className="mb-1 text-[10px] font-medium text-slate-300">{bet.marketName ?? 'Over 1.5 goals'} <span className="ml-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{bet.tag ?? 'prod'}</span></div><div className="mb-2 text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className={`grid grid-cols-2 gap-2 ${expanded ? "sm:grid-cols-3 text-sm p-4" : "md:grid-cols-5 text-xs p-2.5"} text-slate-400 mb-3 bg-slate-900/60 rounded-lg border border-slate-800/60`}><div>Cote entrée:<span className="font-mono text-slate-200 font-medium block text-sm">{bet.entryOdds.toFixed(2)}</span></div><div>Cote cashout:<span className="font-mono text-amber-400 font-medium block text-sm">{exitOdds.toFixed(2)}</span></div><div>{bet.type === 'LAY' ? 'Mise Lay:' : 'Mise Back:'}<span className="font-mono text-slate-200 font-medium block text-sm">{amounts.matchedStake.toFixed(2)} €</span></div><div>Liability:<span className="font-mono text-rose-300 font-medium block text-sm">{bet.type === 'LAY' ? `${amounts.liability.toFixed(2)} €` : '—'}</span></div>
       <div>Gain net maximal<span className="block font-mono text-sm font-medium text-emerald-300">+{maxPositionProfit(bet.type, bet.entryOdds, bet.stake).toFixed(2)} €</span></div>
       <label className="relative z-10 block">
         Gain objectif (€)
@@ -53,7 +56,7 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
             onSetTarget(bet.id, input.value === '' ? null : input.valueAsNumber);
           }} />
       </label>
-      </div><div className="relative z-10 grid grid-cols-[1fr_auto] gap-2"><button type="button" onClick={() => setPendingClose({ id: bet.id, exitOdds })} className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md ${pnl >= 0 ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'}`}><CheckCircle2 className="w-4 h-4" />Couper / Cashout à {exitOdds.toFixed(2)} ({pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} €)</button><button type="button" title="Modifier ou supprimer" onClick={() => setEditingBet(bet)} className="rounded-lg border border-slate-700 px-3 text-slate-400 hover:bg-slate-800 hover:text-slate-100"><Pencil className="h-4 w-4" /></button>
+      </div><div className="relative z-10 grid grid-cols-[1fr_auto] gap-2"><button type="button" onClick={() => setPendingClose({ id: bet.id, exitOdds })} className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md ${pnl >= 0 ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'}`}><CheckCircle2 className="w-4 h-4" />Couper / Cashout à {exitOdds.toFixed(2)} ({pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} €)</button><button type="button" aria-label="Modifier ou supprimer" title="Modifier ou supprimer" onClick={() => setEditingBet(bet)} className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-slate-400 hover:bg-slate-800 hover:text-slate-100"><Pencil className="h-4 w-4" />{expanded && <span>Modifier</span>}</button>
         <details className="col-span-2 text-xs text-slate-400">
           <summary className="cursor-pointer py-1">Options de coupure</summary>
           <button
@@ -71,7 +74,40 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
             Couper avec gain total (+{calculatePnL(bet.type, bet.entryOdds, TOTAL_WIN_EXIT_ODDS, bet.stake).toFixed(2)} €)
           </button>
         </details>
-      </div></article>; })}</div>
+      </div></article>;
+  };
+  return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl lg:flex lg:min-h-0 lg:flex-col"><div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-base font-semibold text-slate-200 flex items-center gap-2"><Layers className="w-5 h-5 text-indigo-400" />Positions Actives ({visibleBets.length})</h3><div className="flex flex-wrap items-center gap-2"><SportFilter value={sportFilter} onChange={setSportFilter} />{teams.length > 0 && <select aria-label="Filtrer les positions actives par équipe" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="max-w-44 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Toutes les équipes</option>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select>}{bets.length > 1 && <button onClick={onCloseAll} className="text-xs font-medium px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition">Tout Couper</button>}</div></div>
+    {bets.length === 0 && <div className="text-center py-8 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position active.<br />Ouvrez un pari à gauche pour suivre le Cashout en direct.</div>}
+    {visibleBets.length === 0 && bets.length > 0 && <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position ne correspond aux filtres.</div>}
+    <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto">
+      {visibleBets.map((bet) => renderPosition(bet))}
+    </div>
+    {selectedPosition && (
+      <dialog
+        ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
+        onClose={() => setSelectedPositionId(null)}
+        aria-labelledby="active-position-title"
+        className="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-2xl backdrop:bg-black/60 sm:p-6"
+      >
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <h3 id="active-position-title" className="text-xl font-semibold">{selectedPosition.matchName || 'Position active'}</h3>
+          <form method="dialog">
+            <button autoFocus className="rounded-lg border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800">Fermer</button>
+          </form>
+        </div>
+        {renderPosition(selectedPosition, true)}
+        <button
+          type="button"
+          onClick={() => {
+            onSelectPosition(selectedPosition);
+            setSelectedPositionId(null);
+          }}
+          className="mt-4 rounded-lg border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
+        >
+          Afficher le match
+        </button>
+      </dialog>
+    )}
     {pendingBet && (
       <dialog
         ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}

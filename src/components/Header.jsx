@@ -1,8 +1,8 @@
 import React from 'react';
-import { TrendingUp, Wallet, Database, Menu, History, CalendarDays } from 'lucide-react';
+import { TrendingUp, Wallet, Database, Menu, History, CalendarDays, LogOut } from 'lucide-react';
 import { formatTimer } from '../utils/betting.js';
 
-export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOffice, onOpenHistory, onShowTodayMatches }) {
+export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOffice, onOpenHistory, onShowTodayMatches, onLogout, logoutPending }) {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-900/80 backdrop-blur">
       <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:flex sm:min-h-16 sm:gap-4 sm:px-6 lg:px-8">
@@ -29,8 +29,9 @@ export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOff
               { label: 'Administration', Icon: Database, action: onOpenBackOffice },
               { label: 'Consulter l’historique', Icon: History, action: onOpenHistory },
               { label: 'Matchs du jour', Icon: CalendarDays, action: onShowTodayMatches },
-            ].map(({ label, Icon, action }) => (
-              <button key={label} type="button" className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 hover:bg-slate-800"
+              { label: 'Se déconnecter', Icon: LogOut, action: onLogout, disabled: logoutPending },
+            ].map(({ label, Icon, action, disabled }) => (
+              <button key={label} type="button" disabled={disabled} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 hover:bg-slate-800"
                 onClick={(event) => {
                   const menu = event.currentTarget.closest('details');
                   menu.open = false;
@@ -74,6 +75,15 @@ export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOff
             <div className="whitespace-nowrap font-mono text-sm font-semibold text-emerald-400">{formatTimer(secondsLeft)}</div>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          disabled={logoutPending}
+          className="hidden shrink-0 items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50 sm:flex"
+        >
+          <LogOut aria-hidden="true" className="h-4 w-4" />
+          Se déconnecter
+        </button>
       </div>
     </header>
   );

@@ -1,3 +1,4 @@
+import { authorize } from './auth.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
@@ -332,6 +333,7 @@ export function createApiMiddleware() {
   return async (request, response, next) => {
     const pathname = (request.url ?? '/').split('?', 1)[0];
     if (!pathname.startsWith('/api/')) return next?.();
+    if (!(await authorize(request, response, pathname))) return;
     try {
       if (request.method === 'GET' && pathname === '/api/state') {
         const state = await transaction(false, getState);

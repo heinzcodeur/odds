@@ -12,7 +12,7 @@ import { calculatePnL, maxPositionProfit, participantNameKey, timestamp } from '
 
 const DEFAULT_MARKET = { id: 'default', name: 'Over 1.5 goals', backOdds: 1.25, layOdds: 1.26 };
 
-export default function App() {
+export default function App({ onLogout, logoutPending }) {
   const [confirmExit, setConfirmExit] = useState(false);
 
   useEffect(() => {
@@ -513,7 +513,7 @@ export default function App() {
         </form>
       </dialog>
     )}
-    <Header bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')}
+    <Header onLogout={onLogout} logoutPending={logoutPending} bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')}
       onOpenHistory={() => setHistoryOpen(true)}
       onShowTodayMatches={() => {
         const section = document.getElementById('today-matches');
