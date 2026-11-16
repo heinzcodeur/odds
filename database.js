@@ -88,7 +88,7 @@ async function getState(connection) {
       matchDate: bet.match_date_snapshot || bet.match_date || '',
       matchTime: bet.match_time_snapshot || bet.match_time || '',
     };
-    if (bet.closed_at_label === null) activeBets.push(position);
+    if (bet.closed_at_label === null) activeBets.push({ ...position, cashoutOdds: bet.exit_odds });
     else closedBets.push({ ...position, closedAt: bet.closed_at_label, exitOdds: bet.exit_odds, finalPnL: bet.final_pnl });
   }
   return {
@@ -225,7 +225,8 @@ async function saveState(connection, state) {
     const type = bet.type === 'BACK' ? 'BACK' : 'LAY';
     const entryOdds = validNumber(bet.entryOdds, 1.25, 1.01);
     const stake = validNumber(bet.stake, 1, 0.01);
-    let exitOdds = null;
+    // An open position can store a manual quote before settlement.
+    let exitOdds = closedAt === null ? validNumber(bet.cashoutOdds, null, 1.01) : null;
     if (closedAt !== null && bet.exitOdds !== null) {
       exitOdds = bet.exitOdds === TOTAL_WIN_EXIT_ODDS
         ? TOTAL_WIN_EXIT_ODDS : validNumber(bet.exitOdds, 1.25, 1.01);

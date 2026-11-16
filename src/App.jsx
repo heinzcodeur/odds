@@ -275,6 +275,7 @@ export default function App({ onLogout, logoutPending }) {
 
   const marketForId = (marketId, matchId) => (matches.find((item) => item.id === matchId)?.markets ?? markets).find((item) => item.id === marketId) ?? selectedMarket;
   const closeOddsFor = (bet) => {
+    if (bet.cashoutOdds != null) return bet.cashoutOdds;
     const matchId = bet.matchId ?? 'legacy-match';
     const marketId = bet.marketId ?? 'default';
     const positionMarket = matchId === selectedMatchId && marketId === selectedMarketId
@@ -325,7 +326,8 @@ export default function App({ onLogout, logoutPending }) {
     saveImmediately.current = true;
     const finalPnL = calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake);
     if (bet.tag !== 'dry-run') setBankroll((current) => Number((current + finalPnL).toFixed(2)));
-    setClosedBets((bets) => [{ ...bet, exitOdds, finalPnL, closedAt: new Date().toISOString() }, ...bets]);
+    const { cashoutOdds, ...position } = bet;
+    setClosedBets((bets) => [{ ...position, exitOdds, finalPnL, closedAt: new Date().toISOString() }, ...bets]);
     setActiveBets((bets) => bets.filter((item) => item.id !== bet.id));
     return true;
   };
@@ -481,14 +483,20 @@ export default function App({ onLogout, logoutPending }) {
     setSelectedMarketId(newMarkets[0]?.id ?? 'default');
   };
 
-  const selectMatch = (id, preferredMarketId = selectedMarketId) => {
+  const selectMatch = (id, preferredMarketId = selectedMarketId, position) => {
     const nextMatch = matches.find((item) => item.id === id);
     if (!nextMatch) return;
-    const nextMarkets = marketsForMatch(nextMatch, [DEFAULT_MARKET]);
+    let nextMarkets = marketsForMatch(nextMatch, [DEFAULT_MARKET]);
     const compatibleMarkets = nextMarkets.filter((item) => marketFitsSport(item.id, nextMatch.sport));
     const nextMarket = compatibleMarkets.find((item) => item.id === preferredMarketId)
       ?? compatibleMarkets.find((item) => item.id === selectedMarketId)
       ?? compatibleMarkets[0];
+    if (position?.cashoutOdds != null && nextMarket.id === preferredMarketId && !saveConflict.current) {
+      const side = position.type === 'BACK' ? 'layOdds' : 'backOdds';
+      nextMarkets = nextMarkets.map((item) => item.id === nextMarket.id
+        ? { ...item, [side]: position.cashoutOdds } : item);
+      saveImmediately.current = true;
+    }
     setMatches((items) => items.map((item) => item.id === id ? { ...item, markets: nextMarkets } : item));
     setSelectedMatchId(id);
     setMarkets(nextMarkets);
@@ -552,11 +560,16 @@ export default function App({ onLogout, logoutPending }) {
       </div>
       <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">
         <TodayMatches matches={matches} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} />
-        <ActiveBets onSetTarget={(id, targetProfit) => {
+        <ActiveBets onSetCashout={(id, cashoutOdds) => {
+          if (saveConflict.current) return false;
+          saveImmediately.current = true;
+          setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, cashoutOdds } : bet));
+          return true;
+        }} onSetTarget={(id, targetProfit) => {
           if (saveConflict.current) return;
           saveImmediately.current = true;
           setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, targetProfit } : bet));
-        }} bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => activeBets.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
+        }} bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId ?? 'default', bet)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={() => activeBets.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
         <button type="button" onClick={() => setHistoryOpen(true)} className="w-full shrink-0 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-slate-200 shadow-xl transition hover:border-emerald-500/40 hover:bg-slate-800/80">
           <span className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" />Consulter l’historique</span>
           <span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs text-slate-400">{closedBets.length}</span>

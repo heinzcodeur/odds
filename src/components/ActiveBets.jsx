@@ -5,7 +5,13 @@ import { teamsForBet, teamsForBets } from '../utils/betTeams.js';
 import SportFilter from './SportFilter.jsx';
 import PositionEditor from './PositionEditor.jsx';
 
-export default function ActiveBets({ bets, matches = [], marketCatalog, getExitOdds, onClose, onCloseAll, onSelectPosition, pnlFor, onEdit, onDelete, onSetTarget }) {
+function parseCashoutQuote(value) {
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(value)) return null;
+  const quote = Number(value.replace(',', '.'));
+  return Number.isFinite(quote) && quote >= 1.01 ? quote : null;
+}
+
+export default function ActiveBets({ bets, matches = [], marketCatalog, getExitOdds, onClose, onCloseAll, onSelectPosition, pnlFor, onEdit, onDelete, onSetTarget, onSetCashout }) {
   const [sportFilter, setSportFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
   const [cashoutDraft, setCashoutDraft] = useState(null);
@@ -30,11 +36,19 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
   const visibleBets = bets.filter((bet) =>
     (sportFilter === 'all' || (sportsByMatch.get(bet.matchId) || 'unknown') === sportFilter)
     && (teamFilter === 'all' || teamsForBet(bet, matches).includes(teamFilter)));
+  const saveCashoutDraft = (bet) => {
+    if (cashoutDraft === null) return;
+    const quote = parseCashoutQuote(cashoutDraft);
+    if (quote === null) return;
+    if (quote !== bet.cashoutOdds) onSetCashout(bet.id, quote);
+    setCashoutDraft(null);
+  };
+
   const renderPosition = (bet, expanded = false) => {
     const liveExitOdds = getExitOdds(bet);
     const manualQuote = expanded && cashoutDraft !== null;
-    const exitOdds = manualQuote ? Number(cashoutDraft.replace(',', '.')) : liveExitOdds;
-    const validQuote = !manualQuote || (/^\d+(?:[.,]\d{1,2})?$/.test(cashoutDraft) && Number.isFinite(exitOdds) && exitOdds >= 1.01);
+    const exitOdds = manualQuote ? parseCashoutQuote(cashoutDraft) : liveExitOdds;
+    const validQuote = exitOdds !== null;
     const pnl = manualQuote && validQuote
       ? calculatePnL(bet.type, bet.entryOdds, exitOdds, bet.stake)
       : pnlFor(bet);
@@ -56,8 +70,14 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
         <input type="text" inputMode="decimal" value={cashoutDraft ?? liveExitOdds.toFixed(2)}
           aria-invalid={!validQuote}
           onChange={(event) => setCashoutDraft(event.target.value)}
+          onBlur={() => saveCashoutDraft(bet)}
+          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
           className="block w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-amber-400" />
         {!validQuote && <span className="block text-xs text-rose-300">Saisis une cote d’au moins 1,01, avec deux décimales maximum.</span>}
+        {bet.cashoutOdds != null && <button type="button" onClick={() => {
+          onSetCashout(bet.id, null);
+          setCashoutDraft(null);
+        }} className="mt-1 text-xs text-indigo-300 hover:underline">Revenir à la cote du marché</button>}
       </label> : <div>Cote cashout:<span className="font-mono text-amber-400 font-medium block text-sm">{exitOdds.toFixed(2)}</span></div>}<div>{bet.type === 'LAY' ? 'Mise Lay:' : 'Mise Back:'}<span className="font-mono text-slate-200 font-medium block text-sm">{amounts.matchedStake.toFixed(2)} €</span></div><div>Liability:<span className="font-mono text-rose-300 font-medium block text-sm">{bet.type === 'LAY' ? `${amounts.liability.toFixed(2)} €` : '—'}</span></div>
       <div>Gain net maximal<span className="block font-mono text-sm font-medium text-emerald-300">+{maxPositionProfit(bet.type, bet.entryOdds, bet.stake).toFixed(2)} €</span></div>
       <label className="relative z-10 block">
@@ -102,7 +122,10 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
     {selectedPosition && (
       <dialog
         ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
-        onClose={() => setSelectedPositionId(null)}
+        onClose={() => {
+          saveCashoutDraft(selectedPosition);
+          setSelectedPositionId(null);
+        }}
         aria-labelledby="active-position-title"
         className="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-2xl backdrop:bg-black/60 sm:p-6"
       >
@@ -116,7 +139,12 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
         <button
           type="button"
           onClick={() => {
-            onSelectPosition(selectedPosition);
+            const cashoutOdds = cashoutDraft === null
+              ? selectedPosition.cashoutOdds
+              : parseCashoutQuote(cashoutDraft);
+            if (cashoutDraft !== null && cashoutOdds === null) return;
+            saveCashoutDraft(selectedPosition);
+            onSelectPosition({ ...selectedPosition, cashoutOdds });
             setSelectedPositionId(null);
           }}
           className="mt-4 rounded-lg border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
