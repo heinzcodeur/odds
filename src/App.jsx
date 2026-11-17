@@ -1,4 +1,3 @@
-import ProfileMenu from './components/ProfileMenu.jsx';
 import AutomaticBets from './components/AutomaticBets.jsx';
 import { defaultMarketForSport, marketFitsSport, footballMarketOptions } from './utils/marketSports.js';
 import React, { useEffect, useRef, useState } from 'react';
@@ -588,14 +587,6 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
         </form>
       </dialog>
     )}
-    <ProfileMenu profile={profile} profiles={profiles} onCreate={onCreateProfile} onSwitch={async (id) => {
-      window.clearTimeout(saveTimeout.current);
-      saveTimeout.current = undefined;
-      await saveQueue.current;
-      if (saveConflict.current || (latestSave.current && !(await latestSave.current()))) return false;
-      onSwitchProfile(id);
-      return true;
-    }} />
     <Header onLogout={onLogout} logoutPending={logoutPending} bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')}
       onOpenHistory={() => setHistoryOpen(true)}
       onShowTodayMatches={() => {
@@ -641,6 +632,17 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     </div>}
     {backOfficeTab && (
       <BackOffice
+        profile={profile}
+        profiles={profiles}
+        onCreateProfile={onCreateProfile}
+        onSwitchProfile={async (id) => {
+      window.clearTimeout(saveTimeout.current);
+      saveTimeout.current = undefined;
+      await saveQueue.current;
+      if (saveConflict.current || (latestSave.current && !(await latestSave.current()))) return false;
+      onSwitchProfile(id);
+      return true;
+    }}
         matches={matches}
         marketCatalog={marketCatalog}
         onSaveMarket={saveCatalogMarket}

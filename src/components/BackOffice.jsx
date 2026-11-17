@@ -1,3 +1,4 @@
+import ProfileMenu from './ProfileMenu.jsx';
 import { participantsForSport } from '../utils/betTeams.js';
 import { MATCH_SPORTS } from '../utils/betting.js';
 import React, { useState } from 'react';
@@ -7,7 +8,7 @@ import ParticipantSelect from './ParticipantSelect.jsx';
 
 import SportSelect from './SportSelect.jsx';
 
-export default function BackOffice({ matches, onUpdateMatches, marketCatalog, onSaveMarket, initialTab, participants, onAddParticipant, onCreateMatch, getDeletionPlan, onDeleteItem, saveStatus, bankroll, onUpdateBankroll, onClose }) {
+export default function BackOffice({ profile, profiles, onCreateProfile, onSwitchProfile, matches, onUpdateMatches, marketCatalog, onSaveMarket, initialTab, participants, onAddParticipant, onCreateMatch, getDeletionPlan, onDeleteItem, saveStatus, bankroll, onUpdateBankroll, onClose }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [editingMatchId, setEditingMatchId] = useState(null);
   const [matchDraft, setMatchDraft] = useState(null);
@@ -133,10 +134,15 @@ export default function BackOffice({ matches, onUpdateMatches, marketCatalog, on
             <Settings className="inline-block h-4 w-4 mr-2" />
             Configuration
           </button>
+          <button type="button" onClick={() => setActiveTab('profiles')}
+            className={`px-4 py-3 text-sm font-semibold border-b-2 ${activeTab === 'profiles' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+            <Users className="mr-2 inline-block h-4 w-4" />Profils
+          </button>
         </nav>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950">
           <p role="status" className="mb-4 text-xs text-slate-400">{saveStatus}</p>
+          {activeTab === 'profiles' && <ProfileMenu profile={profile} profiles={profiles} onCreate={onCreateProfile} onSwitch={onSwitchProfile} />}
           {activeTab === 'matches' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center mb-6">
