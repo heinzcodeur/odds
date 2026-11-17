@@ -1,3 +1,4 @@
+import { handleProfiles } from './profiles.js';
 import { authorize } from './auth.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -153,8 +154,21 @@ async function deleteMissing(connection, table, ids) {
 }
 
 
-async function saveState(connection, state) {
+async function saveState(connection, state, editingProfileId = null) {
   if (!state || typeof state !== 'object') throw new Error('État invalide');
+  // Shared matches and markets must retain links used by any profile's positions.
+  const [profiles] = await connection.query("SELECT id, state_json FROM profiles WHERE id<>'main'");
+  for (const { id: ownerId, state_json: raw } of profiles) {
+    if (ownerId === editingProfileId) continue;
+    const personal = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    for (const bet of [...(personal?.activeBets ?? []), ...(personal?.closedBets ?? [])]) {
+      const match = state.matches?.find(({ id }) => id === bet.matchId);
+      if (!match) throw new Error('Ce match est utilisé par les positions d’un autre profil.');
+      if (state.catalogDeletions?.some((item) => item.type === 'market' && item.key === bet.marketId)) {
+        throw new Error('Ce marché est utilisé par les positions d’un autre profil.');
+      }
+    }
+  }
   const sourceMatches = Array.isArray(state.matches) && state.matches.length ? state.matches : [{
     id: 'legacy-match', homeTeam: state.teams?.[0] ?? 'Real Madrid', awayTeam: state.teams?.[1] ?? 'Manchester City',
   }];
@@ -336,6 +350,7 @@ export function createApiMiddleware() {
     if (!pathname.startsWith('/api/')) return next?.();
     if (!(await authorize(request, response, pathname))) return;
     try {
+      if (await handleProfiles(request, response, pathname, pool, { getState, saveState })) return;
       if (request.method === 'GET' && pathname === '/api/state') {
         const state = await transaction(false, getState);
         return sendJson(response, 200, { ...state, revision: stateRevision(state) });
@@ -375,6 +390,9 @@ export function createApiMiddleware() {
     } catch (error) {
       if (error.code) {
         console.error('MySQL:', error.code, error.message);
+        if (error.code === 'ER_NO_SUCH_TABLE' && /profiles/.test(error.message)) {
+          return sendJson(response, 503, { error: 'Appliquez la migration 006-profiles à la base utilisée par ce serveur.' });
+        }
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
           return sendJson(response, 503, { error: 'Accès MySQL refusé. Vérifiez MYSQL_USER et MYSQL_PASSWORD dans .env.' });
         }

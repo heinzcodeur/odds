@@ -80,3 +80,11 @@ CREATE TABLE settings (
   selected_market_id VARCHAR(191) NOT NULL,
   FOREIGN KEY (selected_match_id, selected_market_id) REFERENCES match_markets(match_id, market_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id VARCHAR(80) PRIMARY KEY,
+  name VARCHAR(60) NOT NULL,
+  state_json JSON DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;
+INSERT IGNORE INTO profiles (id, name) VALUES ('main', 'Principal');

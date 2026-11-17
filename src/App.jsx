@@ -1,3 +1,4 @@
+import ProfileMenu from './components/ProfileMenu.jsx';
 import AutomaticBets from './components/AutomaticBets.jsx';
 import { defaultMarketForSport, marketFitsSport, footballMarketOptions } from './utils/marketSports.js';
 import React, { useEffect, useRef, useState } from 'react';
@@ -20,7 +21,7 @@ function marketsForMatch(match, fallback = []) {
     ? markets : [...markets, defaultMarketForSport(match.sport)];
 }
 
-export default function App({ onLogout, logoutPending }) {
+export default function App({ onLogout, logoutPending, profile, profiles, onSwitchProfile, onCreateProfile }) {
   const [confirmExit, setConfirmExit] = useState(false);
 
   useEffect(() => {
@@ -167,7 +168,7 @@ export default function App({ onLogout, logoutPending }) {
   };
 
   useEffect(() => {
-    fetch('/api/state')
+    fetch('/api/state', { headers: { 'X-Odds-Profile': profile.id } })
       .then(async (response) => {
         const state = await response.json();
         if (!response.ok) throw new Error(state.error || 'Lecture de la base impossible');
@@ -176,21 +177,21 @@ export default function App({ onLogout, logoutPending }) {
       .then((state) => {
         stateRevision.current = state.revision;
         const loadedMarkets = Array.isArray(state.markets) && state.markets.length
-          ? state.markets : [{ ...DEFAULT_MARKET, name: state.market ?? DEFAULT_MARKET.name, backOdds: state.backOdds ?? state.odds, layOdds: state.layOdds ?? Number((state.odds + 0.01).toFixed(2)) }];
-        const loadedMatches = Array.isArray(state.matches) && state.matches.length ? state.matches : [{ id: 'legacy-match', homeTeam: state.teams?.[0] ?? 'Real Madrid', awayTeam: state.teams?.[1] ?? 'Manchester City', matchDate: '', markets: loadedMarkets }];
+          ? state.markets : [{ ...DEFAULT_MARKET, name: state.market ?? DEFAULT_MARKET.name, backOdds: state.backOdds ?? state.odds ?? DEFAULT_MARKET.backOdds, layOdds: state.layOdds ?? DEFAULT_MARKET.layOdds }];
+        const loadedMatches = Array.isArray(state.matches) ? state.matches : [{ id: 'legacy-match', homeTeam: state.teams?.[0] ?? 'Real Madrid', awayTeam: state.teams?.[1] ?? 'Manchester City', matchDate: '', markets: loadedMarkets }];
         const realMatches = loadedMatches.filter((item) => !String(item.id).startsWith('demo-'));
         const datedMatches = realMatches.filter((item) => Number.isFinite(Date.parse(item.matchDate ?? '')));
         const latestMatch = [...(datedMatches.length ? datedMatches : realMatches.length ? realMatches : loadedMatches)]
           .sort((a, b) => Date.parse(b.matchDate ?? '') - Date.parse(a.matchDate ?? ''))[0];
         const chosenMatchId = loadedMatches.some((item) => item.id === state.selectedMatchId)
-          ? state.selectedMatchId : latestMatch?.id ?? loadedMatches[0].id;
+          ? state.selectedMatchId : latestMatch?.id ?? loadedMatches[0]?.id;
         const activeMatch = loadedMatches.find((item) => item.id === chosenMatchId) ?? loadedMatches[0];
-        const chosenMarkets = marketsForMatch(activeMatch, loadedMarkets);
-        const compatibleMarkets = chosenMarkets.filter(({ id }) => marketFitsSport(id, activeMatch.sport));
+        const chosenMarkets = activeMatch ? marketsForMatch(activeMatch, loadedMarkets) : loadedMarkets;
+        const compatibleMarkets = chosenMarkets.filter(({ id }) => marketFitsSport(id, activeMatch?.sport));
         const chosenMarketId = compatibleMarkets.find(({ id }) => id === state.selectedMarketId)?.id ?? compatibleMarkets[0].id;
         marketsRef.current = chosenMarkets;
         setMatches(loadedMatches.map((item) => item.id === chosenMatchId ? { ...item, markets: chosenMarkets } : item));
-        setSelectedMatchId(chosenMatchId);
+        setSelectedMatchId(chosenMatchId ?? '');
         setMarkets(chosenMarkets);
         setMarketCatalog(state.marketCatalog ?? []);
         setTeamCatalog(state.teamCatalog ?? []);
@@ -240,13 +241,13 @@ export default function App({ onLogout, logoutPending }) {
       }, 900);
     }
     async function save() {
-      if (saveConflict.current) return;
+      if (saveConflict.current) return false;
       const catalogChanges = [...pendingMarketChanges.current.values()];
       const catalogDeletions = [...pendingCatalogDeletions.current.values()];
       try {
         const response = await fetch('/api/state', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Odds-Profile': profile.id },
           body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, ...clockState.current, isRunning, betType, entryOdds, stake, teams: [homeTeam, awayTeam], activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
         });
         if (response.status === 409) saveConflict.current = true;
@@ -263,8 +264,10 @@ export default function App({ onLogout, logoutPending }) {
           if (pendingCatalogDeletions.current.get(key) === deletion) pendingCatalogDeletions.current.delete(key);
         }
         if (latestSave.current === save) setSaveStatus('Toutes les données sont enregistrées');
+        return true;
       } catch (error) {
         setSaveStatus(`Erreur de sauvegarde : ${error.message}`);
+        return false;
       }
     }
   }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, clockCheckpoint, isRunning, betType, entryOdds, stake, homeTeam, awayTeam, activeBets, closedBets]);
@@ -292,6 +295,10 @@ export default function App({ onLogout, logoutPending }) {
     && (bet.matchId ?? 'legacy-match') === selectedMatchId);
 
   const placeBet = (tag = 'prod') => {
+    if (!currentMatch) {
+      setBetError('Créez un match avant d’ouvrir une position.');
+      return { ok: false };
+    }
     if (saveConflict.current) {
       setBetError('Sauvegarde bloquée par un conflit. Rechargez la page avant de créer une position.');
       return { ok: false };
@@ -451,7 +458,7 @@ export default function App({ onLogout, logoutPending }) {
     try {
       const response = await fetch('/api/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Odds-Profile': profile.id },
         body: JSON.stringify({ name }),
       });
       const participant = await response.json();
@@ -581,6 +588,14 @@ export default function App({ onLogout, logoutPending }) {
         </form>
       </dialog>
     )}
+    <ProfileMenu profile={profile} profiles={profiles} onCreate={onCreateProfile} onSwitch={async (id) => {
+      window.clearTimeout(saveTimeout.current);
+      saveTimeout.current = undefined;
+      await saveQueue.current;
+      if (saveConflict.current || (latestSave.current && !(await latestSave.current()))) return false;
+      onSwitchProfile(id);
+      return true;
+    }} />
     <Header onLogout={onLogout} logoutPending={logoutPending} bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')}
       onOpenHistory={() => setHistoryOpen(true)}
       onShowTodayMatches={() => {
