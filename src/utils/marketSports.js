@@ -1,4 +1,5 @@
 const footballMarkets = [
+  { id: 'under-0-5', name: 'Under 0.5 goals' },
   { id: 'over-0-5', name: 'Over 0.5 goals' },
   { id: 'over-1-5', name: 'Over 1.5 goals' },
   { id: 'over-2-5', name: 'Over 2.5 goals' },
@@ -34,4 +35,18 @@ export function defaultMarketForSport(sport) {
   };
   const market = !sport || sport === 'football' ? { id: 'default', name: 'Over 1.5 goals' } : preset;
   return { ...market, backOdds: 1.25, layOdds: 1.26 };
+}
+
+export function footballMarketOptions(catalog, matches) {
+  const options = new Map(footballMarkets.map((market) => [market.id, market]));
+  for (const match of matches) {
+    if (match.sport !== 'football') continue;
+    for (const market of match.markets ?? []) {
+      if (marketFitsSport(market.id, 'football')) options.set(market.id, { id: market.id, name: market.name });
+    }
+  }
+  for (const market of catalog) {
+    if (options.has(market.id) || market.sport === 'football') options.set(market.id, market);
+  }
+  return [...options.values()];
 }

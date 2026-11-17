@@ -1,4 +1,5 @@
-import { defaultMarketForSport, marketFitsSport } from './utils/marketSports.js';
+import AutomaticBets from './components/AutomaticBets.jsx';
+import { defaultMarketForSport, marketFitsSport, footballMarketOptions } from './utils/marketSports.js';
 import React, { useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import MatchCard from './components/MatchCard.jsx';
@@ -9,7 +10,7 @@ import BackOffice from './components/BackOffice.jsx';
 import TodayMatches from './components/TodayMatches.jsx';
 import { History, X } from 'lucide-react';
 import useMatchTimer from './hooks/useMatchTimer.js';
-import { calculatePnL, maxPositionProfit, participantNameKey, timestamp } from './utils/betting.js';
+import { calculatePnL, maxPositionProfit, participantNameKey, timestamp, matchAvailableForAutomaticBets } from './utils/betting.js';
 
 const DEFAULT_MARKET = defaultMarketForSport('football');
 
@@ -484,6 +485,40 @@ export default function App({ onLogout, logoutPending }) {
     setSelectedMarketId(newMarkets[0]?.id ?? 'default');
   };
 
+  const createAutomaticBets = ({ matchIds, marketId, type, odds, stake: amount }) => {
+    if (saveConflict.current) return 'Rechargez la page pour récupérer les dernières données.';
+    const chosen = matches.filter((match) => matchIds.includes(match.id));
+    if (chosen.length < 2 || chosen.some((match) => match.sport && match.sport !== 'football')) return 'Choisissez au moins deux matchs de football.';
+    if (chosen.some((match) => !matchAvailableForAutomaticBets(match))) return 'Un match sélectionné est hors de la journée ou a commencé depuis au moins deux heures. Revérifiez la sélection.';
+    if (!Number.isFinite(odds) || odds < 1.01 || !Number.isFinite(amount) || amount < 0.01) return 'Vérifiez la cote et la mise.';
+    const definition = footballMarketOptions(marketCatalog, matches).find(({ id }) => id === marketId);
+    if (!definition || !['BACK', 'LAY'].includes(type)) return 'Marché ou type invalide.';
+    if (chosen.some((match) => !match.markets?.some(({ id }) => id === marketId) && (match.markets?.length ?? 0) >= 30)) return 'Un match a déjà atteint la limite de 30 marchés.';
+    const name = definition.name;
+    const nextMatches = matches.map((match) => {
+      if (!matchIds.includes(match.id) || match.markets?.some(({ id }) => id === marketId)) return match;
+      return { ...match, markets: [...(match.markets ?? []), { id: marketId, name, backOdds: odds, layOdds: odds }] };
+    });
+    const positions = chosen.map((match) => ({
+      id: crypto.randomUUID(), type, tag: 'dry-run',
+      targetProfit: Math.ceil(maxPositionProfit(type, odds, amount) * 40) / 100,
+      entryOdds: odds, stake: amount, marketId, categoryId: marketId, marketName: name,
+      matchId: match.id, matchName: `${match.homeTeam} vs ${match.awayTeam}`,
+      matchDate: match.matchDate ?? '', matchTime: match.matchTime ?? '', timestamp: timestamp(),
+    }));
+    saveImmediately.current = true;
+    setMatches(nextMatches);
+    const currentMarkets = nextMatches.find(({ id }) => id === selectedMatchId)?.markets;
+    if (currentMarkets) {
+      marketsRef.current = currentMarkets;
+      setMarkets(currentMarkets);
+    }
+    setMarketCatalog((items) => items.some(({ id }) => id === marketId) ? items : [...items, { id: marketId, name }]);
+    setActiveBets((items) => [...positions, ...items]);
+    setPositionsMatchId(null);
+    return '';
+  };
+
   const selectMatch = (id, preferredMarketId = selectedMarketId, position) => {
     const nextMatch = matches.find((item) => item.id === id);
     if (!nextMatch) return;
@@ -557,6 +592,7 @@ export default function App({ onLogout, logoutPending }) {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"><p role="status" aria-live="polite" className="mb-3 text-right text-[11px] text-slate-500">{saveStatus}</p><div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-6 space-y-6">
         <MatchCard participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={availableMarketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={availableMarkets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatch={chooseDailyMatch} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
+        <AutomaticBets markets={footballMarketOptions(marketCatalog, matches)} matches={matches} defaultOdds={entryOdds} defaultStake={stake} onCreate={createAutomaticBets} />
         <BetForm betType={betType} setBetType={setBetType} entryOdds={entryOdds} cashoutOdds={betType === 'BACK' ? layOdds : backOdds} stake={stake} setStake={setStake} error={betError} notice={betNotice} matchName={`${teams[0]} vs ${teams[1]}`} marketName={market} onPlace={placeBet} />
       </div>
       <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">
