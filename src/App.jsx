@@ -1,5 +1,7 @@
+import CombinedBets from './components/CombinedBets.jsx';
+import { combinedSummary, validateCombinedTickets } from './utils/combinedBets.js';
 import AutomaticBets from './components/AutomaticBets.jsx';
-import { defaultMarketForSport, marketFitsSport, footballMarketOptions } from './utils/marketSports.js';
+import { defaultMarketForSport, marketFitsSport, footballMarketOptions, marketCategory } from './utils/marketSports.js';
 import React, { useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import MatchCard from './components/MatchCard.jsx';
@@ -10,7 +12,7 @@ import BackOffice from './components/BackOffice.jsx';
 import TodayMatches from './components/TodayMatches.jsx';
 import { History, X } from 'lucide-react';
 import useMatchTimer from './hooks/useMatchTimer.js';
-import { calculatePnL, maxPositionProfit, participantNameKey, timestamp, matchAvailableForAutomaticBets } from './utils/betting.js';
+import { calculatePnL, maxPositionProfit, participantNameKey, timestamp, matchAvailableForAutomaticBets, matchAvailableForCombinedBets } from './utils/betting.js';
 
 const DEFAULT_MARKET = defaultMarketForSport('football');
 
@@ -61,10 +63,11 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
   const currentMatch = matches.find((item) => item.id === selectedMatchId) ?? matches[0];
   const sport = currentMatch?.sport;
   const availableMarkets = markets.filter(({ id }) => marketFitsSport(id, sport));
-  const availableMarketCatalog = sport ? marketCatalog.filter(({ id }) =>
-    marketFitsSport(id, sport) && matches.some((match) =>
-      match.sport === sport && match.markets?.some((item) => item.id === id)
-    )) : marketCatalog;
+  const availableMarketCatalog = sport ? marketCatalog.filter((item) => {
+    const category = marketCategory(item, matches);
+    return category === sport || (!category && matches.some((match) =>
+      match.sport === sport && match.markets?.some(({ id }) => id === item.id)));
+  }) : marketCatalog;
 
   useEffect(() => {
     if (!currentMatch || availableMarkets.some(({ id }) => id === selectedMarketId)) return;
@@ -107,6 +110,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
   const [betType, setBetType] = useState('LAY');
   const entryOdds = betType === 'BACK' ? backOdds : layOdds;
   const [stake, setStake] = useState(100);
+  const [combinedBets, setCombinedBets] = useState([]);
   const [activeBets, setActiveBets] = useState([]);
   const [closedBets, setClosedBets] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -199,6 +203,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
         setBetType(state.betType);
         setStake(state.stake);
         setActiveBets(state.activeBets);
+        setCombinedBets(state.combinedBets ?? []);
         setClosedBets(state.closedBets);
         restore({ secondsLeft: state.secondsLeft, elapsedMinutes: state.elapsedMinutes, isRunning: state.isRunning });
         setSaveStatus('Données chargées depuis MySQL');
@@ -247,7 +252,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
         const response = await fetch('/api/state', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'X-Odds-Profile': profile.id },
-          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, ...clockState.current, isRunning, betType, entryOdds, stake, teams: [homeTeam, awayTeam], activeBets, closedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
+          body: JSON.stringify({ revision: stateRevision.current, bankroll, markets, selectedMarketId, matches, selectedMatchId, odds: backOdds, backOdds, layOdds, market, ...clockState.current, isRunning, betType, entryOdds, stake, teams: [homeTeam, awayTeam], activeBets, closedBets, combinedBets, marketCatalogChanges: catalogChanges, catalogDeletions }),
         });
         if (response.status === 409) saveConflict.current = true;
         const result = await response.json();
@@ -269,7 +274,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
         return false;
       }
     }
-  }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, clockCheckpoint, isRunning, betType, entryOdds, stake, homeTeam, awayTeam, activeBets, closedBets]);
+  }, [loaded, bankroll, marketCatalog, markets, selectedMarketId, matches, selectedMatchId, backOdds, layOdds, market, clockCheckpoint, isRunning, betType, entryOdds, stake, homeTeam, awayTeam, activeBets, closedBets, combinedBets]);
 
   useEffect(() => {
     if (!lastIncrease) return undefined;
@@ -288,7 +293,8 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
   };
   const pnlFor = (bet) => calculatePnL(bet.type, bet.entryOdds, closeOddsFor(bet), bet.stake);
   const layLiabilityInPlay = activeBets.reduce((total, bet) => total + (bet.tag !== 'dry-run' && bet.type === 'LAY' ? Number(bet.stake) * (Number(bet.entryOdds) - 1) : 0), 0);
-  const availableBankroll = bankroll - layLiabilityInPlay;
+  const combinedExposure = combinedBets.reduce((total, ticket) => total + (!ticket.closedAt && ticket.tag === 'prod' ? combinedSummary(ticket).totalStake : 0), 0);
+  const availableBankroll = bankroll - layLiabilityInPlay - combinedExposure;
   const matchingLayBets = activeBets.filter((bet) => bet.type === 'LAY'
     && (bet.marketId ?? 'default') === selectedMarketId
     && (bet.matchId ?? 'legacy-match') === selectedMatchId);
@@ -384,10 +390,10 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
       .forEach((bet) => closePosition(bet, exitOdds));
   };
 
-  const saveCatalogMarket = (id, name) => {
+  const saveCatalogMarket = (id, name, sport) => {
     const existing = marketCatalog.find((item) => item.id === id);
-    if (existing?.name === name) return;
-    const definition = { id: id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, name };
+    if (existing?.name === name && existing.sport === sport) return;
+    const definition = { id: id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, name, sport };
     pendingMarketChanges.current.set(definition.id, definition);
     saveImmediately.current = true;
     setMarketCatalog((items) => existing
@@ -491,6 +497,48 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     setSelectedMarketId(newMarkets[0]?.id ?? 'default');
   };
 
+  const saveCombinedBet = (draft, id) => {
+    if (!loaded || saveConflict.current) return 'Attendez le chargement ou rechargez la page en cas de conflit.';
+    const previous = id ? combinedBets.find((item) => item.id === id) : null;
+    if (id && (!previous || previous.closedAt)) return 'Ce ticket est déjà réglé ou indisponible.';
+    const ticket = {
+      ...previous,
+      ...draft,
+      id: previous?.id ?? crypto.randomUUID(),
+      createdAt: previous?.createdAt ?? new Date().toISOString(),
+    };
+    try { validateCombinedTickets([ticket]); } catch (error) { return error.message; }
+    const now = new Date();
+    for (const { matchId } of ticket.selections) {
+      if (previous?.selections.some((selection) => selection.matchId === matchId)) continue;
+      const match = matches.find((item) => item.id === matchId);
+      if (!match) return 'Un match a été supprimé. Revérifiez vos sélections.';
+      if (!matchAvailableForCombinedBets(match, now)) return 'Retirez les matchs déjà commencés ou sans horaire.';
+    }
+    const previousStake = previous?.tag === 'prod' ? combinedSummary(previous).totalStake : 0;
+    if (ticket.tag === 'prod' && combinedSummary(ticket).totalStake > availableBankroll + previousStake) {
+      return 'Bankroll disponible insuffisante pour cette mise totale.';
+    }
+    saveImmediately.current = true;
+    setCombinedBets((items) => previous
+      ? items.map((item) => item.id === id ? ticket : item)
+      : [ticket, ...items]);
+    return '';
+  };
+
+  const settleCombinedBet = (id, results) => {
+    if (saveConflict.current) return 'Rechargez la page avant de régler le ticket.';
+    const ticket = combinedBets.find((item) => item.id === id);
+    if (!ticket || ticket.closedAt) return 'Ce ticket est déjà réglé ou indisponible.';
+    const settled = { ...ticket, closedAt: new Date().toISOString(), selections: ticket.selections.map((selection) => ({ ...selection, result: results[selection.matchId] })) };
+    try { validateCombinedTickets([settled]); } catch (error) { return error.message; }
+    saveImmediately.current = true;
+    const profit = combinedSummary(settled).profit;
+    if (ticket.tag === 'prod') setBankroll((value) => Number((value + profit).toFixed(2)));
+    setCombinedBets((items) => items.map((item) => item.id === id ? settled : item));
+    return '';
+  };
+
   const createAutomaticBets = ({ matchIds, marketId, type, odds, stake: amount }) => {
     if (saveConflict.current) return 'Rechargez la page pour récupérer les dernières données.';
     const chosen = matches.filter((match) => matchIds.includes(match.id));
@@ -546,7 +594,14 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     setSelectedMarketId(nextMarket.id);
   };
 
-  const chooseDailyMatch = (match) => selectMatch(match.id);
+  const chooseDailyMatch = (fixture) => {
+    const existing = matches.find((match) => match.id === fixture.id || (
+      match.matchDate === fixture.matchDate && match.sport === fixture.sport
+      && participantNameKey(match.homeTeam) === participantNameKey(fixture.homeTeam)
+      && participantNameKey(match.awayTeam) === participantNameKey(fixture.awayTeam)));
+    if (existing) selectMatch(existing.id);
+    else createMatch(fixture);
+  };
 
   const resetMatch = () => {
     setBackOdds(1.25);
@@ -598,6 +653,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"><p role="status" aria-live="polite" className="mb-3 text-right text-[11px] text-slate-500">{saveStatus}</p><div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-6 space-y-6">
         <MatchCard participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={availableMarketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={availableMarkets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatch={chooseDailyMatch} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
+        <CombinedBets matches={matches} catalog={marketCatalog} tickets={combinedBets} onSave={saveCombinedBet} onSettle={settleCombinedBet} />
         <AutomaticBets markets={footballMarketOptions(marketCatalog, matches)} matches={matches} defaultOdds={entryOdds} defaultStake={stake} onCreate={createAutomaticBets} />
         <BetForm betType={betType} setBetType={setBetType} entryOdds={entryOdds} cashoutOdds={betType === 'BACK' ? layOdds : backOdds} stake={stake} setStake={setStake} error={betError} notice={betNotice} matchName={`${teams[0]} vs ${teams[1]}`} marketName={market} onPlace={placeBet} />
       </div>

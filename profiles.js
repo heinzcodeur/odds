@@ -1,3 +1,4 @@
+import { validateCombinedTickets } from './src/utils/combinedBets.js';
 import { randomUUID, createHash } from 'node:crypto';
 import { calculatePnL } from './src/utils/betting.js';
 
@@ -52,7 +53,7 @@ export async function handleProfiles(request, response, pathname, pool, { getSta
         || !Number.isFinite(body.bankroll) || body.bankroll < 0) throw new Error('Nom et bankroll invalides.');
       const profile = { id: randomUUID(), name };
       const state = {
-        bankroll: body.bankroll, activeBets: [], closedBets: [], sharedCatalogs: true,
+        bankroll: body.bankroll, activeBets: [], closedBets: [], combinedBets: [], sharedCatalogs: true,
       };
       await connection.execute('INSERT INTO profiles (id,name,state_json) VALUES (?,?,?)',
         [profile.id, profile.name, JSON.stringify(state)]);
@@ -73,10 +74,10 @@ export async function handleProfiles(request, response, pathname, pool, { getSta
         await saveState(connection, { ...shared, matches: [...matches.values()], teamCatalogAdditions: additions, marketCatalogChanges: changes });
         shared = await getState(connection);
       }
-      personal = { bankroll: personal.bankroll, activeBets: personal.activeBets, closedBets: personal.closedBets, sharedCatalogs: true };
+      personal = { bankroll: personal.bankroll, activeBets: personal.activeBets, closedBets: personal.closedBets, combinedBets: personal.combinedBets ?? [], sharedCatalogs: true };
       await connection.execute('UPDATE profiles SET state_json=? WHERE id=?', [JSON.stringify(personal), profileId]);
     }
-    const current = { ...shared, bankroll: personal.bankroll, activeBets: personal.activeBets, closedBets: personal.closedBets };
+    const current = { ...shared, bankroll: personal.bankroll, activeBets: personal.activeBets, closedBets: personal.closedBets, combinedBets: personal.combinedBets ?? [] };
     if (pathname === '/api/state' && request.method === 'GET') {
       await connection.commit();
       return send(200, { ...current, revision: revision(current) });
@@ -93,7 +94,7 @@ export async function handleProfiles(request, response, pathname, pool, { getSta
           || !Number.isFinite(position.entryOdds) || position.entryOdds < 1.01
           || !Number.isFinite(position.stake) || position.stake <= 0) throw new Error('Position invalide.');
       }
-      next = { bankroll: body.bankroll, activeBets: body.activeBets, closedBets: body.closedBets, sharedCatalogs: true };
+      next = { bankroll: body.bankroll, activeBets: body.activeBets, closedBets: body.closedBets, combinedBets: validateCombinedTickets(body.combinedBets ?? personal.combinedBets ?? []), sharedCatalogs: true };
       for (const position of next.closedBets) {
         const previous = current.closedBets.find(({ id }) => id === position.id);
         const sameSettlement = previous && ['type', 'entryOdds', 'stake', 'exitOdds'].every((key) => previous[key] === position[key]);
@@ -101,9 +102,9 @@ export async function handleProfiles(request, response, pathname, pool, { getSta
           : calculatePnL(position.type, position.entryOdds, position.exitOdds, position.stake);
       }
       // Publish only common data through the existing relational persistence path.
-      await saveState(connection, { ...body, bankroll: shared.bankroll, activeBets: shared.activeBets, closedBets: shared.closedBets }, profileId);
+      await saveState(connection, { ...body, bankroll: shared.bankroll, activeBets: shared.activeBets, closedBets: shared.closedBets, combinedBets: shared.combinedBets }, profileId);
       shared = await getState(connection);
-      result = { saved: true, revision: revision({ ...shared, bankroll: next.bankroll, activeBets: next.activeBets, closedBets: next.closedBets }) };
+      result = { saved: true, revision: revision({ ...shared, bankroll: next.bankroll, activeBets: next.activeBets, closedBets: next.closedBets, combinedBets: next.combinedBets }) };
     } else if (pathname === '/api/positions/closed' && request.method === 'DELETE') {
       next = { ...personal, closedBets: [] };
       result = { cleared: true };

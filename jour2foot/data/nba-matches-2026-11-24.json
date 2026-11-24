@@ -1,0 +1,245 @@
+{
+  "date": "2026-11-24",
+  "provider": "espn-nba",
+  "throughDate": "2026-11-25",
+  "events": [
+    {
+      "id": "espn-nba-401910036",
+      "startTimestamp": 1795478400,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "30",
+        "name": "Charlotte Hornets",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cha.png"
+      },
+      "awayTeam": {
+        "id": "29",
+        "name": "Memphis Grizzlies",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mem.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910037",
+      "startTimestamp": 1795478400,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "20",
+        "name": "Philadelphia 76ers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/phi.png"
+      },
+      "awayTeam": {
+        "id": "22",
+        "name": "Portland Trail Blazers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910038",
+      "startTimestamp": 1795480200,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "11",
+        "name": "Indiana Pacers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/ind.png"
+      },
+      "awayTeam": {
+        "id": "25",
+        "name": "Oklahoma City Thunder",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910039",
+      "startTimestamp": 1795480200,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "28",
+        "name": "Toronto Raptors",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/tor.png"
+      },
+      "awayTeam": {
+        "id": "15",
+        "name": "Milwaukee Bucks",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mil.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910040",
+      "startTimestamp": 1795480200,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "16",
+        "name": "Minnesota Timberwolves",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/min.png"
+      },
+      "awayTeam": {
+        "id": "17",
+        "name": "Brooklyn Nets",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/bkn.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910041",
+      "startTimestamp": 1795482000,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "4",
+        "name": "Chicago Bulls",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/chi.png"
+      },
+      "awayTeam": {
+        "id": "5",
+        "name": "Cleveland Cavaliers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cle.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910042",
+      "startTimestamp": 1795482000,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "3",
+        "name": "New Orleans Pelicans",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/no.png"
+      },
+      "awayTeam": {
+        "id": "21",
+        "name": "Phoenix Suns",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/phx.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910043",
+      "startTimestamp": 1795483800,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "10",
+        "name": "Houston Rockets",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/hou.png"
+      },
+      "awayTeam": {
+        "id": "12",
+        "name": "LA Clippers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/lac.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910044",
+      "startTimestamp": 1795489200,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "13",
+        "name": "Los Angeles Lakers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/lal.png"
+      },
+      "awayTeam": {
+        "id": "26",
+        "name": "Utah Jazz",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/utah.png"
+      }
+    },
+    {
+      "id": "espn-nba-401910045",
+      "startTimestamp": 1795489200,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "23",
+        "name": "Sacramento Kings",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png"
+      },
+      "awayTeam": {
+        "id": "24",
+        "name": "San Antonio Spurs",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png"
+      }
+    },
+    {
+      "id": "espn-nba-401909314",
+      "startTimestamp": 1795564800,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "19",
+        "name": "Orlando Magic",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/orl.png"
+      },
+      "awayTeam": {
+        "id": "8",
+        "name": "Detroit Pistons",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/det.png"
+      }
+    },
+    {
+      "id": "espn-nba-401909315",
+      "startTimestamp": 1795568400,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "27",
+        "name": "Washington Wizards",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/wsh.png"
+      },
+      "awayTeam": {
+        "id": "2",
+        "name": "Boston Celtics",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/bos.png"
+      }
+    },
+    {
+      "id": "espn-nba-401909316",
+      "startTimestamp": 1795575600,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "7",
+        "name": "Denver Nuggets",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/den.png"
+      },
+      "awayTeam": {
+        "id": "6",
+        "name": "Dallas Mavericks",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/dal.png"
+      }
+    },
+    {
+      "id": "espn-nba-401909317",
+      "startTimestamp": 1795644000,
+      "tournament": {
+        "name": "NBA"
+      },
+      "homeTeam": {
+        "id": "20",
+        "name": "Philadelphia 76ers",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/phi.png"
+      },
+      "awayTeam": {
+        "id": "14",
+        "name": "Miami Heat",
+        "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mia.png"
+      }
+    }
+  ]
+}

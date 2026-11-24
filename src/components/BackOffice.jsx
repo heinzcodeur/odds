@@ -1,3 +1,4 @@
+import { marketCategory, presetMarketSport } from '../utils/marketSports.js';
 import ProfileMenu from './ProfileMenu.jsx';
 import { participantsForSport } from '../utils/betTeams.js';
 import { MATCH_SPORTS } from '../utils/betting.js';
@@ -13,14 +14,19 @@ export default function BackOffice({ profile, profiles, onCreateProfile, onSwitc
   const [editingMatchId, setEditingMatchId] = useState(null);
   const [matchDraft, setMatchDraft] = useState(null);
   const [marketDraft, setMarketDraft] = useState(null);
+  const [marketFilter, setMarketFilter] = useState('all');
+  const marketCategories = { ...MATCH_SPORTS, '': 'À classer' };
+  const marketsByCategory = Object.fromEntries(Object.keys(marketCategories).map((category) => [category, []]));
+  for (const item of marketCatalog) marketsByCategory[marketCategory(item, matches)].push(item);
   const [pendingDelete, setPendingDelete] = useState(null);
   const impact = pendingDelete && getDeletionPlan(pendingDelete.type, pendingDelete.key);
 
   const saveMarket = (event) => {
     event.preventDefault();
     const name = marketDraft.name.trim();
-    if (!name || creatingParticipant) return;
-    onSaveMarket(marketDraft.id, name);
+    if (!name) return;
+    onSaveMarket(marketDraft.id, name, marketDraft.sport || null);
+    if (marketFilter !== 'all') setMarketFilter(marketDraft.sport);
     setMarketDraft(null);
   };
 
@@ -336,34 +342,59 @@ export default function BackOffice({ profile, profiles, onCreateProfile, onSwitc
             <section className="mx-auto max-w-2xl space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold text-slate-200">Catalogue des marchés ({marketCatalog.length})</h3>
-                <button type="button" onClick={() => setMarketDraft({ name: '' })} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
+                <button type="button" onClick={() => setMarketDraft({ name: '', sport: marketFilter === 'all' ? '' : marketFilter })} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
                   Ajouter un marché
                 </button>
               </div>
               {marketDraft && (
                 <form onSubmit={saveMarket} className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-800 p-3">
                   <label className="min-w-0 flex-1 basis-48 text-sm text-slate-300">
-                    {marketDraft.id ? 'Modifier le nom du marché' : 'Nom du nouveau marché'}
+                    {marketDraft.id ? 'Nom du marché' : 'Nom du nouveau marché'}
                     <input autoFocus required maxLength={80} value={marketDraft.name} onChange={(event) => setMarketDraft({ ...marketDraft, name: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Catégorie
+                    <select required disabled={Boolean(presetMarketSport(marketDraft.id))}
+                      value={marketDraft.sport} onChange={(event) => setMarketDraft({ ...marketDraft, sport: event.target.value })}
+                      className="mt-1 block rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100">
+                      <option value="" disabled>À classer</option>
+                      {Object.entries(MATCH_SPORTS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                    </select>
                   </label>
                   <button type="button" onClick={() => setMarketDraft(null)} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Annuler</button>
                   <button type="submit" className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500">Enregistrer</button>
                 </form>
               )}
-              <ul className="space-y-2">
-                {[...marketCatalog].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3">
-                    <span className="min-w-0 break-words text-sm text-slate-200">{item.name}</span>
-                    <div className="flex shrink-0 gap-1"><button type="button" aria-label={`Modifier ${item.name}`} onClick={() => setMarketDraft(item)} className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-                      Modifier
-                    </button>
-                      <button type="button" aria-label={`Supprimer ${item.name}`} onClick={() => setPendingDelete({ type: 'market', key: item.id, label: item.name })} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <label className="block text-sm text-slate-300">
+                Filtrer par catégorie
+                <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)}
+                  className="ml-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100">
+                  <option value="all">Toutes les catégories</option>
+                  {Object.entries(marketCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              {Object.entries(marketCategories).filter(([category]) => marketFilter === 'all' || marketFilter === category)
+                .map(([category, label]) => {
+                  const items = marketsByCategory[category].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+                  return <section key={category} className="space-y-2">
+                    <h4 className="font-semibold text-slate-200">{label} ({items.length})</h4>
+                    {items.length === 0 && <p className="text-sm text-slate-400">Aucun marché dans cette catégorie.</p>}
+                    <ul className="space-y-2">
+                      {items.map((item) => (
+                        <li key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+                          <span className="min-w-0 break-words text-sm text-slate-200">{item.name}</span>
+                          <div className="flex shrink-0 gap-1"><button type="button" aria-label={`Modifier ${item.name}`} onClick={() => setMarketDraft({ ...item, sport: category })} className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+                            Modifier
+                          </button>
+                            <button type="button" aria-label={`Supprimer ${item.name}`} onClick={() => setPendingDelete({ type: 'market', key: item.id, label: item.name })} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>;
+                })}
             </section>
           )}
 

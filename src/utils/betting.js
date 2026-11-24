@@ -106,16 +106,24 @@ export const MATCH_SPORTS = Object.freeze({
   other: 'Autre',
 });
 
-export function matchAvailableForAutomaticBets(match, now = new Date()) {
+function parisDateKey(date) {
+  const parts = Object.fromEntries(matchDateFormatter.formatToParts(date).map(({ type, value }) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function matchStartsAfter(match, cutoff) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(match.matchDate ?? '')
     || !/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(match.matchTime ?? '')) return false;
-  const dateKey = (date) => {
-    const parts = Object.fromEntries(matchDateFormatter.formatToParts(date).map(({ type, value }) => [type, value]));
-    return `${parts.year}-${parts.month}-${parts.day}`;
-  };
-  if (match.matchDate !== dateKey(now)) return false;
-  const cutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000);
   const seconds = String(cutoff.getUTCSeconds()).padStart(2, '0');
   const kickoff = match.matchTime.length === 5 ? match.matchTime + ':00' : match.matchTime;
-  return `${match.matchDate}T${kickoff}` > `${dateKey(cutoff)}T${matchTimeFormatter.format(cutoff)}:${seconds}`;
+  return `${match.matchDate}T${kickoff}` > `${parisDateKey(cutoff)}T${matchTimeFormatter.format(cutoff)}:${seconds}`;
+}
+
+export function matchAvailableForCombinedBets(match, now = new Date()) {
+  return matchStartsAfter(match, now);
+}
+
+export function matchAvailableForAutomaticBets(match, now = new Date()) {
+  return match.matchDate === parisDateKey(now)
+    && matchStartsAfter(match, new Date(now.getTime() - 2 * 60 * 60 * 1000));
 }

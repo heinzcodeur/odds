@@ -1,3 +1,5 @@
+import { validateCombinedTickets } from './src/utils/combinedBets.js';
+import { fetchAndSaveToday, localDateKey } from './jour2foot/footapi-daily.js';
 import { handleProfiles } from './profiles.js';
 import { authorize } from './auth.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -69,7 +71,7 @@ async function getState(connection) {
     WHERE mm.display_order IS NOT NULL ORDER BY mm.match_id, mm.display_order`);
   for (const { match_id, ...market } of quotes) matchesById.get(match_id).markets.push(market);
 
-  const [marketCatalog] = await connection.query('SELECT id, name FROM markets ORDER BY name, id');
+  const [marketCatalog] = await connection.query('SELECT id, name, sport FROM markets ORDER BY name, id');
   const [teamCatalog] = await connection.query('SELECT id, name FROM teams ORDER BY name, id');
   const selectedMatch = matchesById.get(settings.selected_match_id);
   const { markets } = selectedMatch;
@@ -92,7 +94,10 @@ async function getState(connection) {
     if (bet.closed_at_label === null) activeBets.push({ ...position, cashoutOdds: bet.exit_odds });
     else closedBets.push({ ...position, closedAt: bet.closed_at_label, exitOdds: bet.exit_odds, finalPnL: bet.final_pnl });
   }
+  const [[profileData]] = await connection.query("SELECT state_json FROM profiles WHERE id='main'");
+  const personal = typeof profileData?.state_json === 'string' ? JSON.parse(profileData.state_json) : profileData?.state_json;
   return {
+    combinedBets: personal?.combinedBets ?? [],
     bankroll: settings.bankroll, odds: selectedMarket.backOdds, backOdds: selectedMarket.backOdds,
     layOdds: selectedMarket.layOdds, market: selectedMarket.name, markets, marketCatalog, selectedMarketId: selectedMarket.id,
     elapsedMinutes: settings.elapsed_minutes, secondsLeft: settings.seconds_left, isRunning: Boolean(settings.is_running),
@@ -156,6 +161,7 @@ async function deleteMissing(connection, table, ids) {
 
 async function saveState(connection, state, editingProfileId = null) {
   if (!state || typeof state !== 'object') throw new Error('État invalide');
+  if (state.combinedBets !== undefined) validateCombinedTickets(state.combinedBets);
   // Shared matches and markets must retain links used by any profile's positions.
   const [profiles] = await connection.query("SELECT id, state_json FROM profiles WHERE id<>'main'");
   for (const { id: ownerId, state_json: raw } of profiles) {
@@ -271,18 +277,21 @@ async function saveState(connection, state, editingProfileId = null) {
   for (const bet of state.activeBets ?? []) collectPosition(bet, null);
   for (const bet of state.closedBets ?? []) collectPosition(bet, String(bet.closedAt ?? ''));
 
-  const [catalog] = await connection.query('SELECT id, name FROM markets');
+  const [catalog] = await connection.query('SELECT id, name, sport FROM markets');
   const names = new Map(catalog.map(({ id, name }) => [id, name]));
+  const catalogSports = new Map(catalog.map(({ id, sport }) => [id, sport]));
   const catalogChanges = new Map();
-  for (const { id, name } of state.marketCatalogChanges ?? []) {
+  for (const { id, name, sport } of state.marketCatalogChanges ?? []) {
     if (typeof id !== 'string' || !id || id.length > 191 || typeof name !== 'string' || !name.trim() || name.length > 80) {
       throw new Error('Marché du catalogue invalide.');
     }
-    catalogChanges.set(id, name.trim());
+    if (sport != null && !Object.hasOwn(MATCH_SPORTS, sport)) throw new Error('Catégorie de marché invalide.');
+    catalogChanges.set(id, [name.trim(), sport === undefined ? catalogSports.get(id) ?? null : sport]);
   }
   const previousNames = new Map(names);
-  for (const [id, name] of catalogChanges) names.set(id, name);
-  await upsert(connection, 'markets', 'id name', [...catalogChanges], 'name');
+  for (const [id, [name]] of catalogChanges) names.set(id, name);
+  await upsert(connection, 'markets', 'id name sport',
+    [...catalogChanges].map(([id, fields]) => [id, ...fields]), 'name sport');
 
   const newMarkets = [];
   const marketLinks = [...marketRecords.values()].map(([matchId, marketId, name, order, backOdds, layOdds]) => {
@@ -316,6 +325,10 @@ async function saveState(connection, state, editingProfileId = null) {
     WHERE mm.display_order IS NULL AND p.id IS NULL`);
   await deleteMissing(connection, 'matches', [...matches.keys()]);
 
+  if (state.combinedBets !== undefined) {
+    await connection.execute("UPDATE profiles SET state_json=JSON_SET(COALESCE(state_json,JSON_OBJECT()), '$.combinedBets', CAST(? AS JSON)) WHERE id='main'", [JSON.stringify(state.combinedBets)]);
+  }
+
   for (const { type, key } of state.catalogDeletions ?? []) {
     if (typeof key !== 'string' || !key || key.length > 191) throw new Error('Suppression invalide.');
     if (type === 'market') {
@@ -328,6 +341,39 @@ async function saveState(connection, state, editingProfileId = null) {
       throw new Error('Type de suppression invalide.');
     }
   }
+}
+
+async function loadDailyFixtures(day, sport) {
+  const schedule = await fetchAndSaveToday(sport);
+  if (schedule.date !== day) throw new Error('Le jour a changé. Rechargez le calendrier.');
+  const timeFormat = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const now = Date.now() / 1000;
+  const fixtures = schedule.events.filter((event) =>
+    event.homeTeam?.name && event.awayTeam?.name && Number.isFinite(event.startTimestamp)
+    && (sport !== 'basketball' || (event.startTimestamp > now && event.startTimestamp <= now + 86400))
+  ).map((event) => ({
+    id: `fixture-${event.id}`, sourceEventId: String(event.id), sport,
+    homeTeam: event.homeTeam.name, awayTeam: event.awayTeam.name,
+    matchDate: localDateKey(new Date(event.startTimestamp * 1000)),
+    matchTime: timeFormat.format(new Date(event.startTimestamp * 1000)),
+    country: event.country ?? '', competition: event.tournament?.uniqueTournament?.name ?? event.tournament?.name ?? '',
+  }));
+  return { date: day, fixtures };
+}
+
+async function dailyFixtures(sport) {
+  const day = localDateKey();
+  if (sport === 'basketball') return loadDailyFixtures(day, sport);
+  return transaction(true, async (connection) => {
+    await connection.execute('INSERT IGNORE INTO daily_fixture_cache (fixture_date) VALUES (?)', [day]);
+    const [[cached]] = await connection.execute('SELECT payload FROM daily_fixture_cache WHERE fixture_date=? FOR UPDATE', [day]);
+    let payload = typeof cached.payload === 'string' ? JSON.parse(cached.payload) : cached.payload;
+    if (!Array.isArray(payload?.fixtures)) {
+      payload = await loadDailyFixtures(day, sport);
+      await connection.execute('UPDATE daily_fixture_cache SET payload=?, fetched_at=UTC_TIMESTAMP() WHERE fixture_date=?', [JSON.stringify(payload), day]);
+    }
+    return payload;
+  });
 }
 
 async function readBody(request) {
@@ -350,6 +396,13 @@ export function createApiMiddleware() {
     if (!pathname.startsWith('/api/')) return next?.();
     if (!(await authorize(request, response, pathname))) return;
     try {
+      if (request.method === 'GET' && pathname === '/api/fixtures/today') {
+        const sport = new URL(request.url, 'http://localhost').searchParams.get('sport') ?? 'football';
+        if (sport !== 'football' && sport !== 'basketball') {
+          return sendJson(response, 400, { error: 'Sport indisponible dans le calendrier.' });
+        }
+        return sendJson(response, 200, await dailyFixtures(sport));
+      }
       if (await handleProfiles(request, response, pathname, pool, { getState, saveState })) return;
       if (request.method === 'GET' && pathname === '/api/state') {
         const state = await transaction(false, getState);
@@ -393,8 +446,14 @@ export function createApiMiddleware() {
         if (error.code === 'ER_NO_SUCH_TABLE' && /profiles/.test(error.message)) {
           return sendJson(response, 503, { error: 'Appliquez la migration 006-profiles à la base utilisée par ce serveur.' });
         }
+        if (error.code === 'ER_NO_SUCH_TABLE' && /daily_fixture_cache/.test(error.message)) {
+          return sendJson(response, 503, { error: 'Appliquez la migration 007-daily-fixtures à la base utilisée par ce serveur.' });
+        }
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
           return sendJson(response, 503, { error: 'Accès MySQL refusé. Vérifiez MYSQL_USER et MYSQL_PASSWORD dans .env.' });
+        }
+        if (error.code === 'ER_BAD_FIELD_ERROR' && /Unknown column 'sport'/.test(error.message)) {
+          return sendJson(response, 503, { error: 'Vérifiez les migrations 004-match-sport et 008-market-sport de la base utilisée par ce serveur.' });
         }
         if (error.code === 'ER_BAD_FIELD_ERROR' && /Unknown column 'tag'/.test(error.message)) {
           return sendJson(response, 503, { error: 'La colonne tag manque dans positions. Appliquez la migration 003-position-tag à la base utilisée par ce serveur.' });

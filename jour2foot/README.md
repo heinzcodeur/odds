@@ -13,10 +13,11 @@ Jour2Foot utilise le port `5180` pour ne pas ouvrir l'ancien simulateur Odds qui
 
 ## Charger le calendrier
 
-Ajoute ta clé RapidAPI dans le fichier `.env` :
+Par défaut, Jour2Foot lit le tableau public de football d’ESPN, sans clé. Deux pages datées couvrent les matchs de minuit à minuit à Paris. Le calendrier correspond aux compétitions publiées par ESPN. Le sélecteur de matchs d’Odds utilise le même chargement.
 
-```env
-RAPIDAPI_KEY=ta_nouvelle_cle_rapidapi
-```
+Le calendrier est mis en cache pour la journée. En local, le serveur écrit les matchs dans `data/matches.json` et dans `data/footapi-matches-AAAA-MM-JJ.json`. L’interface filtre ensuite par équipe ou compétition. La commande `npm run footapi:today` permet aussi de charger le calendrier.
 
-Au premier chargement du jour, l'application récupère le calendrier mondial FootAPI (dont les compétitions nationales et internationales) si le JSON du jour n'existe pas encore. Les matchs sont enregistrés dans `data/matches.json` et une copie datée dans `data/footapi-matches-AAAA-MM-JJ.json`. Tu peux aussi lancer `npm run footapi:today` manuellement.
+Pour changer de fournisseur, définis dans `.env` :
+
+- `JOUR2FOOT_PROVIDER=api-football` avec `API_FOOTBALL_KEY` pour appeler `/fixtures` une seule fois avec la date et le fuseau Europe/Paris.
+- `JOUR2FOOT_PROVIDER=footapi7` avec `RAPIDAPI_KEY` et `FOOTAPI_ENABLED=true` pour charger le calendrier par compétition. Le plafond `FOOTAPI_MAX_CALLS` vaut 10 par défaut.

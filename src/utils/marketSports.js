@@ -20,12 +20,25 @@ export function marketPresetsForSport(sport) {
   return [];
 }
 
+export function presetMarketSport(id) {
+  if (id === 'default' || footballMarkets.some((market) => market.id === id)) return 'football';
+  if (basketballMarkets.some((market) => market.id === id)) return 'basketball';
+  if (id === 'tennis-match-winner') return 'tennis';
+  if (id === 'other-match-winner') return 'other';
+  return null;
+}
+
+export function marketCategory(market, matches) {
+  const category = presetMarketSport(market.id) ?? market.sport;
+  if (category) return category;
+  const sports = new Set(matches.filter((match) => match.sport
+    && match.markets?.some(({ id }) => id === market.id)).map(({ sport }) => sport));
+  return sports.size === 1 ? [...sports][0] : '';
+}
+
 export function marketFitsSport(id, sport) {
-  if (!sport) return true;
-  if (id === 'default' || footballMarkets.some((market) => market.id === id)) return sport === 'football';
-  if (basketballMarkets.some((market) => market.id === id)) return sport === 'basketball';
-  if (id === 'tennis-match-winner' || id === 'other-match-winner') return id === `${sport}-match-winner`;
-  return true;
+  const category = presetMarketSport(id);
+  return !sport || !category || category === sport;
 }
 
 export function defaultMarketForSport(sport) {
@@ -46,7 +59,8 @@ export function footballMarketOptions(catalog, matches) {
     }
   }
   for (const market of catalog) {
-    if (options.has(market.id) || market.sport === 'football') options.set(market.id, market);
+    if (market.sport && market.sport !== 'football') options.delete(market.id);
+    else if (options.has(market.id) || marketCategory(market, matches) === 'football') options.set(market.id, market);
   }
   return [...options.values()];
 }

@@ -47,13 +47,13 @@ export default function App() {
 
   return <main className="page-shell">
     <header className="topbar"><a className="brand" href="/"><span className="brand-mark">J2</span><span>jour<span className="brand-accent">2</span>foot</span></a><span className="live-label"><i /> Calendrier du jour</span></header>
-    <section className="hero"><p className="eyebrow">FOOTBALL · FIXTURES</p><h1>Les matchs du jour</h1><p className="hero-subtitle">Les rencontres des sept championnats suivis, réunies au même endroit.</p><div className="hero-meta"><span>{new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full', timeZone: 'Europe/Paris' }).format(new Date())}</span>{state === 'ready' && <span className="update-note">Actualisé à {updatedAt}</span>}</div></section>
+    <section className="hero"><p className="eyebrow">FOOTBALL · FIXTURES</p><h1>Les matchs du jour</h1><p className="hero-subtitle">Les rencontres du jour, toutes compétitions confondues.</p><div className="hero-meta"><span>{new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full', timeZone: 'Europe/Paris' }).format(new Date())}</span>{state === 'ready' && <span className="update-note">Actualisé à {updatedAt}</span>}</div></section>
     <section className="content-card" aria-label="Liste des matchs">
       <div className="toolbar"><label className="search-box"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Équipe ou championnat" /></label><select aria-label="Filtrer par catégorie" value={country} onChange={(event) => setCountry(event.target.value)}><option>Toutes les catégories</option>{categories.map((item) => <option key={item} value={item}>{COUNTRY_NAMES[item] ?? item}</option>)}</select><button className="refresh-button" onClick={loadMatches} disabled={state === 'loading'}>{state === 'loading' ? 'Chargement…' : '↻ Actualiser'}</button></div>
-      {state === 'missing' ? <div className="empty-state"><div className="empty-icon">⚽</div><h2>Impossible de charger les matchs du jour</h2><p>Vérifie que la clé <code>RAPIDAPI_KEY</code> est définie dans le fichier <code>.env</code>, puis actualise la page.</p></div>
+      {state === 'missing' ? <div className="empty-state"><div className="empty-icon">⚽</div><h2>Impossible de charger les matchs du jour</h2><p>Réessaie dans quelques instants.</p></div>
         : state === 'loading' ? <div className="empty-state"><div className="spinner" /><p>Chargement du calendrier…</p></div>
           : filtered.length ? <><div className="results-heading"><strong>{filtered.length} match{filtered.length > 1 ? 's' : ''}</strong><span>Heures de Paris</span></div><MatchList matches={filtered} countryNames={COUNTRY_NAMES} /></>
             : <div className="empty-state"><div className="empty-icon">⌕</div><h2>Aucun match trouvé</h2><p>Change la catégorie sélectionnée ou le terme recherché.</p></div>}
-    </section><footer>Les données du calendrier sont fournies par FootAPI.</footer>
+    </section>
   </main>;
 }

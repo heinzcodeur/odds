@@ -62,6 +62,7 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
   const [fixtureStatus, setFixtureStatus] = React.useState('idle');
   const [fixtureError, setFixtureError] = React.useState('');
   const [fixtureQuery, setFixtureQuery] = React.useState('');
+  const [fixtureSport, setFixtureSport] = React.useState('football');
   const [teamDrafts, setTeamDrafts] = React.useState(teams);
   const [dateDraft, setDateDraft] = React.useState(currentMatch?.matchDate ?? '');
   const [sportDraft, setSportDraft] = React.useState(currentMatch?.sport ?? '');
@@ -85,15 +86,28 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
     setDateDraft('');
     setTimeDraft('');
     setFixtureQuery('');
-    setFixtureError('');
-    const { matchDate: today } = defaultMatchSchedule();
-    setDailyFixtures(matches.filter((match) => match.matchDate === today).map((match) => ({
-      ...match,
-      country: '',
-      competition: '',
-    })));
-    setFixtureStatus('ready');
+    setFixtureSport(currentMatch?.sport === 'basketball' ? 'basketball' : 'football');
   };
+  React.useEffect(() => {
+    if (!newMatchModalOpen || creatingManualMatch) return;
+    const controller = new AbortController();
+    setFixtureError('');
+    setFixtureStatus('loading');
+    setDailyFixtures([]);
+    fetch(`/api/fixtures/today?sport=${fixtureSport}`, { cache: 'no-store', signal: controller.signal }).then(async (response) => {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Calendrier indisponible.');
+      if (!Array.isArray(result.fixtures)) throw new Error('Calendrier invalide.');
+      if (controller.signal.aborted) return;
+      setDailyFixtures(result.fixtures);
+      setFixtureStatus('ready');
+    }).catch((error) => {
+      if (controller.signal.aborted) return;
+      setFixtureError(error.message);
+      setFixtureStatus('error');
+    });
+    return () => controller.abort();
+  }, [newMatchModalOpen, creatingManualMatch, fixtureSport]);
   const startManualMatch = () => {
     const { matchDate, matchTime } = defaultMatchSchedule();
     setTeamDrafts(['', '']);
@@ -107,6 +121,9 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
     onCreateMatch({ homeTeam: teamDrafts[0].trim(), awayTeam: teamDrafts[1].trim(), matchDate: dateDraft, matchTime: timeDraft, sport: sportDraft });
     setNewMatchModalOpen(false);
   };
+  const emptyCalendarMessage = fixtureSport === 'basketball'
+    ? 'Aucun match NBA prévu dans les prochaines 24 heures.'
+    : 'Aucun match du jour enregistré.';
   const filteredFixtures = dailyFixtures.filter((fixture) =>
     `${fixture.homeTeam} ${fixture.awayTeam} ${fixture.country} ${fixture.competition}`.toLocaleLowerCase('fr').includes(fixtureQuery.trim().toLocaleLowerCase('fr'))
   );
@@ -133,14 +150,19 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
     <span className="sr-only">{formatTimer(secondsLeft)}</span>
     {newMatchModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewMatchModalOpen(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="new-match-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4"><div><h2 id="new-match-title" className="text-lg font-bold text-slate-100">Choisir un match du jour</h2><p className="mt-1 text-xs text-slate-400">Sélectionne un match déjà enregistré ou crée-en un nouveau.</p></div><button type="button" aria-label="Fermer" onClick={() => setNewMatchModalOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></header>
+        <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4"><div><h2 id="new-match-title" className="text-lg font-bold text-slate-100">Choisir un match</h2><p className="mt-1 text-xs text-slate-400">Sélectionne un match dans le calendrier ou ajoute-le manuellement.</p></div><button type="button" aria-label="Fermer" onClick={() => setNewMatchModalOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></header>
         {creatingManualMatch ? <div className="space-y-4 overflow-y-auto p-5">
           <SportSelect value={sportDraft} placeholder="Choisir un sport" onChange={(sport) => {
             setSportDraft(sport);
             setTeamDrafts(['', '']);
           }} />
           {sportDraft && <div key={sportDraft} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3"><div className="text-xs text-slate-400">Domicile<ParticipantSelect onCreate={(name) => participants.includes(name) ? '' : onAddParticipant(name)} label="Participant à domicile" participants={participantsForSport(participants, matches, sportDraft, teamDrafts)} value={teamDrafts[0]} otherParticipant={teamDrafts[1]} onChange={(name) => setTeamDrafts(([, second]) => [name, second])} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></div><span className="pt-5 text-xs text-slate-500">VS</span><div className="text-xs text-slate-400">Visiteur<ParticipantSelect onCreate={(name) => participants.includes(name) ? '' : onAddParticipant(name)} label="Participant visiteur" participants={participantsForSport(participants, matches, sportDraft, teamDrafts)} value={teamDrafts[1]} otherParticipant={teamDrafts[0]} onChange={(name) => setTeamDrafts(([first]) => [first, name])} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></div></div>}<div className="grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-400">Date<input aria-label="Date du match" type="date" value={dateDraft} onChange={(event) => setDateDraft(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label><label className="text-xs text-slate-400">Heure<input aria-label="Heure du match" type="time" value={timeDraft} onChange={(event) => setTimeDraft(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label></div><footer className="flex justify-between border-t border-slate-800 pt-4"><button type="button" onClick={() => setCreatingManualMatch(false)} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Retour à la liste</button><button type="button" disabled={!sportDraft || !validParticipants || !dateDraft || !timeDraft} onClick={saveManualMatch} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40">Créer le match</button></footer></div>
-          : <><div className="border-b border-slate-800 p-4"><input autoFocus aria-label="Rechercher un match" type="search" value={fixtureQuery} onChange={(event) => setFixtureQuery(event.target.value)} placeholder="Rechercher une équipe ou une compétition…" className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500" /></div><div className="min-h-32 flex-1 overflow-y-auto p-4">{fixtureStatus === 'loading' && <p className="py-8 text-center text-sm text-slate-400">Chargement des matchs du jour…</p>}{fixtureStatus === 'error' && <p role="alert" className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">{fixtureError}</p>}{fixtureStatus === 'ready' && filteredFixtures.length === 0 && <p className="py-8 text-center text-sm text-slate-400">{dailyFixtures.length ? 'Aucun match ne correspond à la recherche.' : 'Aucun match du jour enregistré.'}</p>}<div className="space-y-2">{filteredFixtures.map((fixture) => { const alreadyAdded = matches.some((item) => item.homeTeam.trim().toLocaleLowerCase('fr') === fixture.homeTeam.trim().toLocaleLowerCase('fr') && item.awayTeam.trim().toLocaleLowerCase('fr') === fixture.awayTeam.trim().toLocaleLowerCase('fr') && item.matchDate === fixture.matchDate); return <button type="button" key={fixture.id} onClick={() => { onChooseDailyMatch(fixture); setNewMatchModalOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left transition hover:border-emerald-500/40 hover:bg-slate-800"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-100">{fixture.homeTeam} <span className="text-slate-500">vs</span> {fixture.awayTeam}</span><span className="mt-1 block truncate text-xs text-slate-400">{[fixture.country, fixture.competition].filter(Boolean).join(' · ')} · {formatMatchDate(fixture.matchDate, fixture.matchTime)}</span></span>{alreadyAdded && <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">Déjà ajouté</span>}</button>; })}</div></div><footer className="border-t border-slate-800 p-4"><button type="button" onClick={startManualMatch} className="w-full rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:border-slate-500 hover:bg-slate-800">+ Créer un match manuellement</button></footer></>}
+          : <><div className="flex flex-col gap-2 border-b border-slate-800 p-4 sm:flex-row">
+            <select aria-label="Sport du calendrier" value={fixtureSport} onChange={(event) => setFixtureSport(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+              <option value="football">Football</option>
+              <option value="basketball">Basket · NBA</option>
+            </select>
+            <input autoFocus aria-label="Rechercher un match" type="search" value={fixtureQuery} onChange={(event) => setFixtureQuery(event.target.value)} placeholder="Rechercher une équipe ou une compétition…" className="min-w-0 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500" /></div><div className="min-h-32 flex-1 overflow-y-auto p-4">{fixtureStatus === 'loading' && <p className="py-8 text-center text-sm text-slate-400">Chargement des matchs du jour…</p>}{fixtureStatus === 'error' && <p role="alert" className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">{fixtureError}</p>}{fixtureStatus === 'ready' && filteredFixtures.length === 0 && <p className="py-8 text-center text-sm text-slate-400">{dailyFixtures.length ? 'Aucun match ne correspond à la recherche.' : emptyCalendarMessage}</p>}<div className="space-y-2">{filteredFixtures.map((fixture) => { const alreadyAdded = matches.some((item) => item.id === fixture.id || (item.sport === fixture.sport && item.homeTeam.trim().toLocaleLowerCase('fr') === fixture.homeTeam.trim().toLocaleLowerCase('fr') && item.awayTeam.trim().toLocaleLowerCase('fr') === fixture.awayTeam.trim().toLocaleLowerCase('fr') && item.matchDate === fixture.matchDate)); return <button type="button" key={fixture.id} onClick={() => { onChooseDailyMatch(fixture); setNewMatchModalOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left transition hover:border-emerald-500/40 hover:bg-slate-800"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-100">{fixture.homeTeam} <span className="text-slate-500">vs</span> {fixture.awayTeam}</span><span className="mt-1 block truncate text-xs text-slate-400">{[fixture.country, fixture.competition].filter(Boolean).join(' · ')} · {formatMatchDate(fixture.matchDate, fixture.matchTime)}</span></span>{alreadyAdded && <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">Déjà ajouté</span>}</button>; })}</div></div><footer className="border-t border-slate-800 p-4"><button type="button" onClick={startManualMatch} className="w-full rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:border-slate-500 hover:bg-slate-800">+ Créer un match manuellement</button></footer></>}
       </section>
     </div>}
   </section>;

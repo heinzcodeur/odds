@@ -18,7 +18,8 @@ CREATE TABLE matches (
 
 CREATE TABLE markets (
   id VARCHAR(191) PRIMARY KEY,
-  name VARCHAR(191) NOT NULL
+  name VARCHAR(191) NOT NULL,
+  sport ENUM('football', 'basketball', 'tennis', 'other') DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;
 
 CREATE TABLE match_markets (
@@ -88,3 +89,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;
 INSERT IGNORE INTO profiles (id, name) VALUES ('main', 'Principal');
+
+CREATE TABLE IF NOT EXISTS daily_fixture_cache (
+  fixture_date DATE PRIMARY KEY,
+  payload JSON DEFAULT NULL,
+  fetched_at TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

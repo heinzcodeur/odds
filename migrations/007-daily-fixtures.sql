@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS daily_fixture_cache (
+  fixture_date DATE PRIMARY KEY,
+  payload JSON DEFAULT NULL,
+  fetched_at TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
