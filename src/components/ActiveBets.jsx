@@ -11,9 +11,14 @@ function parseCashoutQuote(value) {
   return Number.isFinite(quote) && quote >= 1.01 ? quote : null;
 }
 
+function positionMarketName(bet) {
+  return bet.marketName ?? 'Over 1.5 goals';
+}
+
 export default function ActiveBets({ bets, matches = [], marketCatalog, getExitOdds, onClose, onCloseAll, onSelectPosition, pnlFor, onEdit, onDelete, onSetTarget, onSetCashout, filteredMatch, onClearMatchFilter }) {
   const [sportFilter, setSportFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
+  const [marketFilter, setMarketFilter] = useState('');
   const [cashoutDraft, setCashoutDraft] = useState(null);
   const [selectedPositionId, setSelectedPositionId] = useState(null);
   const selectedPosition = bets.find((bet) => bet.id === selectedPositionId);
@@ -36,9 +41,14 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
   const matchBets = filteredMatch
     ? bets.filter((bet) => (bet.matchId ?? 'legacy-match') === filteredMatch.id)
     : bets;
-  const visibleBets = filteredMatch ? matchBets : matchBets.filter((bet) =>
+  const markets = [...new Set(matchBets.map(positionMarketName))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const selectedMarket = markets.includes(marketFilter) ? marketFilter : '';
+  const scopedBets = filteredMatch ? matchBets : matchBets.filter((bet) =>
     (sportFilter === 'all' || (sportsByMatch.get(bet.matchId) || 'unknown') === sportFilter)
     && (teamFilter === 'all' || teamsForBet(bet, matches).includes(teamFilter)));
+  const visibleBets = selectedMarket
+    ? scopedBets.filter((bet) => positionMarketName(bet) === selectedMarket)
+    : scopedBets;
   const saveCashoutDraft = (bet) => {
     if (cashoutDraft === null) return;
     const quote = parseCashoutQuote(cashoutDraft);
@@ -68,7 +78,7 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
         }}
         className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"
       />}
-      <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><span className={`text-xs font-bold px-2 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>{bet.type === 'BACK' ? 'POUR (Back)' : 'CONTRE (Lay)'}</span><span className="text-[11px] text-slate-500 font-mono">{bet.timestamp}</span></div><div className={`font-mono text-sm font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{resultLabel}</div></div><div className="mb-1 text-[10px] font-medium text-slate-300">{bet.marketName ?? 'Over 1.5 goals'} <span className="ml-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{bet.tag ?? 'prod'}</span></div><div className="mb-2 text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className={`grid grid-cols-2 gap-2 ${expanded ? "sm:grid-cols-3 text-sm p-4" : "md:grid-cols-5 text-xs p-2.5"} text-slate-400 mb-3 bg-slate-900/60 rounded-lg border border-slate-800/60`}><div>Cote entrée:<span className="font-mono text-slate-200 font-medium block text-sm">{bet.entryOdds.toFixed(2)}</span></div>{expanded ? <label className="block">
+      <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><span className={`text-xs font-bold px-2 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>{bet.type === 'BACK' ? 'POUR (Back)' : 'CONTRE (Lay)'}</span><span className="text-[11px] text-slate-500 font-mono">{bet.timestamp}</span></div><div className={`font-mono text-sm font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{resultLabel}</div></div><div className="mb-1 text-[10px] font-medium text-slate-300">{positionMarketName(bet)} <span className="ml-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{bet.tag ?? 'prod'}</span></div><div className="mb-2 text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className={`grid grid-cols-2 gap-2 ${expanded ? "sm:grid-cols-3 text-sm p-4" : "md:grid-cols-5 text-xs p-2.5"} text-slate-400 mb-3 bg-slate-900/60 rounded-lg border border-slate-800/60`}><div>Cote entrée:<span className="font-mono text-slate-200 font-medium block text-sm">{bet.entryOdds.toFixed(2)}</span></div>{expanded ? <label className="block">
         Cote cashout
         <input type="text" inputMode="decimal" value={cashoutDraft ?? liveExitOdds.toFixed(2)}
           aria-invalid={!validQuote}
@@ -116,14 +126,19 @@ export default function ActiveBets({ bets, matches = [], marketCatalog, getExitO
         </details>
       </div></article>;
   };
-  return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl lg:flex lg:min-h-0 lg:flex-col"><div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-base font-semibold text-slate-200 flex items-center gap-2"><Layers className="w-5 h-5 text-indigo-400" />Positions Actives ({visibleBets.length})</h3><div className="flex flex-wrap items-center gap-2">{!filteredMatch && <SportFilter value={sportFilter} onChange={setSportFilter} />}{!filteredMatch && teams.length > 0 && <select aria-label="Filtrer les positions actives par équipe" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="max-w-44 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Toutes les équipes</option>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select>}{matchBets.length > 1 && <button onClick={() => onCloseAll(matchBets)} className="text-xs font-medium px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition">{filteredMatch ? 'Couper les positions du match' : 'Tout Couper'}</button>}</div></div>
+  return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl lg:flex lg:min-h-0 lg:flex-col"><div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-base font-semibold text-slate-200 flex items-center gap-2"><Layers className="w-5 h-5 text-indigo-400" />Positions Actives ({visibleBets.length})</h3><div className="flex flex-wrap items-center gap-2">{!filteredMatch && <SportFilter value={sportFilter} onChange={setSportFilter} />}{!filteredMatch && teams.length > 0 && <select aria-label="Filtrer les positions actives par équipe" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="max-w-44 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300"><option value="all">Toutes les équipes</option>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select>}{markets.length > 0 && (
+      <select aria-label="Filtrer les positions actives par marché" value={selectedMarket} onChange={(event) => setMarketFilter(event.target.value)} className="max-w-48 rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-300">
+        <option value="">Tous les marchés</option>
+        {markets.map((market) => <option key={market} value={market}>{market}</option>)}
+      </select>
+    )}{matchBets.length > 1 && <button onClick={() => onCloseAll(matchBets)} className="text-xs font-medium px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition">{filteredMatch ? 'Couper les positions du match' : 'Tout Couper'}</button>}</div></div>
     {filteredMatch && <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-300">
       <span>{filteredMatch.homeTeam} – {filteredMatch.awayTeam}</span>
       <button type="button" onClick={onClearMatchFilter} className="text-xs text-indigo-300 hover:underline">Afficher toutes les positions</button>
     </div>}
     {filteredMatch && matchBets.length === 0 && <p className="py-4 text-center text-xs text-slate-400">Aucune position active pour ce match.</p>}
     {!filteredMatch && bets.length === 0 && <div className="text-center py-8 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position active.<br />Ouvrez un pari à gauche pour suivre le Cashout en direct.</div>}
-    {!filteredMatch && visibleBets.length === 0 && bets.length > 0 && <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position ne correspond aux filtres.</div>}
+    {visibleBets.length === 0 && matchBets.length > 0 && <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">Aucune position ne correspond aux filtres.</div>}
     <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto">
       {visibleBets.map((bet) => renderPosition(bet))}
     </div>
