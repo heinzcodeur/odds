@@ -25,6 +25,10 @@ function marketsFor(match, catalog, matches) {
   return [...options.values()];
 }
 
+function selectionLabel(selection) {
+  return [selection.matchName, selection.marketName, selection.team?.name].filter(Boolean).join(' · ');
+}
+
 export default function CombinedBets({ matches, catalog, tickets, onSave, onSettle }) {
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -96,7 +100,7 @@ export default function CombinedBets({ matches, catalog, tickets, onSave, onSett
         <button type="button" onClick={() => { setSettlement(ticket); setResults({}); setError(''); }} className="rounded-lg border border-slate-600 px-3 py-2">Renseigner les résultats</button>
       </div>}
       <p className="mt-2">{totals.lines.length} combinaisons · Gain maximal net {totals.maxProfit.toFixed(2)} €</p>
-      <ul className="mt-2 space-y-1">{ticket.selections.map((selection) => <li key={selection.matchId}>{selection.matchName} · {selection.marketName} · {Number(selection.odds).toFixed(2)}{ticket.closedAt && ` · ${{ won: 'Gagné', lost: 'Perdu', void: 'Annulé' }[selection.result]}`}</li>)}</ul>
+      <ul className="mt-2 space-y-1">{ticket.selections.map((selection) => <li key={selection.matchId}>{selectionLabel(selection)} · {Number(selection.odds).toFixed(2)}{ticket.closedAt && ` · ${{ won: 'Gagné', lost: 'Perdu', void: 'Annulé' }[selection.result]}`}</li>)}</ul>
       <div className="mt-4">
         <h4 className="font-semibold text-slate-200">Sous-paris ({totals.subBets.length})</h4>
         <ul className="mt-2 max-h-96 space-y-2 overflow-y-auto">
@@ -110,7 +114,7 @@ export default function CombinedBets({ matches, catalog, tickets, onSave, onSett
                 <span className={status.color}>{status.label}{bet.returnCents !== null && ` · Retour ${(bet.returnCents / 100).toFixed(2)} €`}</span>
               </div>
               <ul className="mt-1 space-y-1 text-xs text-slate-400">
-                {bet.selections.map((selection) => <li key={selection.matchId}>{selection.matchName} · {selection.marketName}</li>)}
+                {bet.selections.map((selection) => <li key={selection.matchId}>{selectionLabel(selection)}</li>)}
               </ul>
             </li>;
           })}
@@ -154,11 +158,24 @@ export default function CombinedBets({ matches, catalog, tickets, onSave, onSett
               <p className="font-medium">{selection.matchName}</p>
               <button type="button" aria-label={`Retirer ${selection.matchName}`} onClick={() => setSelections((items) => items.filter(({ matchId }) => matchId !== selection.matchId))} className="text-slate-300 underline">Retirer</button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[1fr_8rem]">
+            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_8rem]">
               <label className="text-xs text-slate-400">Marché<select required value={selection.marketId} onChange={(event) => {
                 const market = options.find(({ id }) => id === event.target.value);
-                update(selection.matchId, { marketId: market?.id ?? '', marketName: market?.name ?? '', odds: match?.markets?.find(({ id }) => id === market?.id)?.backOdds ?? selection.odds });
+                update(selection.matchId, { marketId: market?.id ?? '', marketName: market?.name ?? '', odds: selection.team ? '' : (match?.markets?.find(({ id }) => id === market?.id)?.backOdds ?? selection.odds) });
               }} className={input}><option value="">Choisir un marché</option>{options.map((market) => <option key={market.id} value={market.id}>{market.name}</option>)}</select></label>
+              <label className="text-xs text-slate-400">Équipe visée par le Back
+                <select value={selection.team?.side ?? ''} onChange={(event) => {
+                  const side = event.target.value;
+                  const name = side === 'home' ? match?.homeTeam : match?.awayTeam;
+                  update(selection.matchId, { team: side && name ? { side, name } : null, odds: '' });
+                }} className={input}>
+                  <option value="">Match entier</option>
+                  {match ? <>
+                    <option value="home">Équipe 1 · {match.homeTeam}</option>
+                    <option value="away">Équipe 2 · {match.awayTeam}</option>
+                  </> : selection.team && <option value={selection.team.side}>{selection.team.name}</option>}
+                </select>
+              </label>
               <label className="text-xs text-slate-400">Cote Back<input required type="number" min="1.01" step="0.01" value={selection.odds} onChange={(event) => update(selection.matchId, { odds: event.target.value })} className={input} /></label>
             </div>
           </div>;
@@ -167,7 +184,7 @@ export default function CombinedBets({ matches, catalog, tickets, onSave, onSett
           <p>{selections.length} matchs · {summary.lines.length} combinaisons · Mise totale {summary.totalStake.toFixed(2)} €</p>
           <p>Retour maximal {summary.maxReturn.toFixed(2)} € · Gain maximal net {summary.maxProfit.toFixed(2)} €</p>
         </div>
-        <details className="text-sm text-slate-400"><summary className="cursor-pointer">Voir les combinaisons</summary><ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">{summary.lines.map((line) => <li key={line.join('-')}>{line.map((index) => selections[index].matchName).join(' + ')} · cote {line.reduce((odds, index) => odds * Number(selections[index].odds), 1).toFixed(2)}</li>)}</ul></details>
+        <details className="text-sm text-slate-400"><summary className="cursor-pointer">Voir les combinaisons</summary><ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">{summary.lines.map((line) => <li key={line.join('-')}>{line.map((index) => selectionLabel(selections[index])).join(' + ')} · cote {line.reduce((odds, index) => odds * Number(selections[index].odds), 1).toFixed(2)}</li>)}</ul></details>
         {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2">Annuler</button><button disabled={!valid} className="rounded-lg bg-indigo-600 px-3 py-2 font-semibold disabled:opacity-40">{editingId ? 'Enregistrer les modifications' : `Créer le ticket ${tag}`}</button></div>
       </form>
@@ -179,7 +196,7 @@ export default function CombinedBets({ matches, catalog, tickets, onSave, onSett
         event.preventDefault(); const message = onSettle(settlement.id, results);
         if (message) { setError(message); return; } setSettlement(null);
       }}>
-        {settlement.selections.map((selection) => <label key={selection.matchId} className="block text-sm">{selection.matchName} · {selection.marketName}<select required value={results[selection.matchId] ?? ''} onChange={(event) => setResults((items) => ({ ...items, [selection.matchId]: event.target.value }))} className={input}><option value="">Choisir le résultat</option><option value="won">Gagné</option><option value="lost">Perdu</option><option value="void">Annulé (cote 1)</option></select></label>)}
+        {settlement.selections.map((selection) => <label key={selection.matchId} className="block text-sm">{selectionLabel(selection)}<select required value={results[selection.matchId] ?? ''} onChange={(event) => setResults((items) => ({ ...items, [selection.matchId]: event.target.value }))} className={input}><option value="">Choisir le résultat</option><option value="won">Gagné</option><option value="lost">Perdu</option><option value="void">Annulé (cote 1)</option></select></label>)}
         {settlement.selections.every((item) => results[item.matchId]) && <p className="text-sm">Résultat net · {combinedSummary({ ...settlement, selections: settlement.selections.map((selection) => ({ ...selection, result: results[selection.matchId] })) }).profit.toFixed(2)} €</p>}
         {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlement(null)} className="rounded-lg px-3 py-2">Annuler</button><button className="rounded-lg bg-indigo-600 px-3 py-2">Confirmer le règlement</button></div>

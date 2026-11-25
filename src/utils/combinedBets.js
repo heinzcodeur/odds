@@ -64,6 +64,10 @@ export function validateCombinedTickets(value) {
       if (!selection.matchId || matches.has(selection.matchId) || !selection.marketId || !selection.marketName
         || !Number.isFinite(selection.odds) || selection.odds < 1.01
         || !['pending', 'won', 'lost', 'void'].includes(selection.result)) throw new Error('Sélection de combiné invalide.');
+      if (selection.team != null && (!['home', 'away'].includes(selection.team.side)
+        || typeof selection.team.name !== 'string' || !selection.team.name.trim())) {
+        throw new Error('Équipe de sélection invalide.');
+      }
       matches.add(selection.matchId);
     }
     const summary = combinedSummary(ticket);
