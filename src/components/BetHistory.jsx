@@ -18,7 +18,9 @@ function closedAtLabel(bet) {
   return date ? date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'medium' }) : bet.closedAt;
 }
 
-function PositionDetails({ bet, result, onClose }) {
+function PositionDetails({ bet, result, onClose, onComment }) {
+  const [comment, setComment] = useState(bet.comment ?? '');
+  const [commentError, setCommentError] = useState('');
   const { liability, matchedStake } = getPositionAmounts(bet.type, bet.entryOdds, bet.stake);
   const fields = [
     ['Marché', bet.marketName || 'Non renseigné'],
@@ -61,12 +63,26 @@ function PositionDetails({ bet, result, onClose }) {
             </div>
           ))}
         </dl>
+        <form className="space-y-3 rounded-xl border border-slate-800 bg-slate-900 p-4" onSubmit={(event) => {
+          event.preventDefault();
+          setCommentError(onComment(bet.id, comment));
+        }}>
+          <label className="block text-sm font-medium" htmlFor="position-comment">Commentaire</label>
+          <textarea id="position-comment" rows={4} maxLength={4000} value={comment}
+            onChange={(event) => setComment(event.target.value)}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+          {commentError && <p role="alert" className="text-sm text-rose-300">{commentError}</p>}
+          <button type="submit" disabled={comment === (bet.comment ?? '')}
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-40">
+            Enregistrer le commentaire
+          </button>
+        </form>
       </div>
     </dialog>
   );
 }
 
-export default function BetHistory({ bets, matches = [], marketCatalog, onClear, onEdit, onDelete, onReopen }) {
+export default function BetHistory({ bets, matches = [], marketCatalog, onClear, onEdit, onDelete, onReopen, onComment }) {
   const [tagFilter, setTagFilter] = useState('all');
   const [sportFilter, setSportFilter] = useState('all');
   const [historyFilter, setHistoryFilter] = useState('all');
@@ -184,7 +200,7 @@ export default function BetHistory({ bets, matches = [], marketCatalog, onClear,
       />
       <div className="min-w-0 space-y-1"><div className="text-[10px] text-slate-300">{bet.marketName ?? 'Over 1.5 goals'} <span className="ml-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{bet.tag ?? 'prod'}</span></div><div className="text-[10px] text-slate-500">{bet.matchName || 'Match'}{bet.matchDate ? ` · ${formatMatchDate(bet.matchDate, bet.matchTime)}` : ''}</div><div className="flex items-center gap-2"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>{bet.type === 'BACK' ? 'POUR' : 'CONTRE'}</span><span className="text-xs text-slate-300 font-mono">{bet.entryOdds.toFixed(2)} → {formatExitOdds(bet.exitOdds)}</span><span className="text-[10px] text-slate-500 font-mono">({closedAtLabel(bet)})</span></div><div className="text-[11px] text-slate-500">{bet.type === 'LAY' ? `Liability: ${amounts.liability.toFixed(2)} € · Mise Lay: ${amounts.matchedStake.toFixed(2)} €` : `Mise Back: ${Number(bet.stake).toFixed(2)} €`}</div></div><div className="pointer-events-none relative z-10 flex flex-wrap items-center gap-2"><div className="text-right"><div className={`font-mono text-sm font-bold ${result >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{result >= 0 ? '+' : ''}{result.toFixed(2)} €</div><span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{result < 0 ? 'Perdu' : 'Gagné'} &amp; Sauvegardé</span></div><button type="button" title="Modifier ou supprimer" onClick={() => setEditingBet(bet)} className="pointer-events-auto rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"><Pencil className="h-4 w-4" /></button></div>
     </article>; })}</div>
-    {detailsBet && <PositionDetails bet={detailsBet} result={resultFor(detailsBet)} onClose={() => setDetailsId(null)} />}
+    {detailsBet && <PositionDetails key={detailsBet.id} bet={detailsBet} result={resultFor(detailsBet)} onComment={onComment} onClose={() => setDetailsId(null)} />}
     {editingBet && <PositionEditor bet={editingBet} matches={matches} marketCatalog={marketCatalog} closed onReopen={() => { onReopen(editingBet); setEditingBet(null); }} onClose={() => setEditingBet(null)} onSave={(changes) => { onEdit(editingBet, changes); setEditingBet(null); }} onDelete={(bet) => { onDelete(bet); setEditingBet(null); }} />}
   </section>;
 }

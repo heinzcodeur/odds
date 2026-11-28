@@ -1,8 +1,8 @@
 import React from 'react';
-import { TrendingUp, Wallet, Database, Menu, History, CalendarDays, LogOut } from 'lucide-react';
+import { TrendingUp, Wallet, Database, Menu, History, CalendarDays, Layers, LogOut } from 'lucide-react';
 import { formatTimer } from '../utils/betting.js';
 
-export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOffice, onOpenHistory, onShowTodayMatches, onLogout, logoutPending }) {
+export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOffice, onOpenHistory, onShowTodayMatches, onShowActivePositions, onLogout, logoutPending }) {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-900/80 backdrop-blur">
       <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:flex sm:min-h-16 sm:gap-4 sm:px-6 lg:px-8">
@@ -29,6 +29,7 @@ export default function Header({ bankroll, isRunning, secondsLeft, onOpenBackOff
               { label: 'Administration', Icon: Database, action: onOpenBackOffice },
               { label: 'Consulter l’historique', Icon: History, action: onOpenHistory },
               { label: 'Matchs du jour', Icon: CalendarDays, action: onShowTodayMatches },
+              { label: 'Positions actives', Icon: Layers, action: onShowActivePositions },
               { label: 'Se déconnecter', Icon: LogOut, action: onLogout, disabled: logoutPending },
             ].map(({ label, Icon, action, disabled }) => (
               <button key={label} type="button" disabled={disabled} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 hover:bg-slate-800"

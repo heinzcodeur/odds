@@ -90,6 +90,7 @@ async function getState(connection) {
       matchId: bet.match_id, matchName: bet.match_name_snapshot || `${bet.home_team} vs ${bet.away_team}`,
       matchDate: bet.match_date_snapshot || bet.match_date || '',
       matchTime: bet.match_time_snapshot || bet.match_time || '',
+      comment: bet.comment ?? '',
     };
     if (bet.closed_at_label === null) activeBets.push({ ...position, cashoutOdds: bet.exit_odds });
     else closedBets.push({ ...position, closedAt: bet.closed_at_label, exitOdds: bet.exit_odds, finalPnL: bet.final_pnl });
@@ -272,6 +273,7 @@ async function saveState(connection, state, editingProfileId = null) {
       String(bet.matchDate ?? match.matchDate).slice(0, 30), String(bet.matchTime ?? match.matchTime).slice(0, 10),
       closedAt, exitOdds, finalPnL, bet.tag === 'dry-run' ? 'dry-run' : 'prod',
       validNumber(bet.targetProfit, null, 0.01),
+      typeof bet.comment === 'string' ? bet.comment.slice(0, 4000) : null,
     ]);
   }
   for (const bet of state.activeBets ?? []) collectPosition(bet, null);
@@ -310,7 +312,7 @@ async function saveState(connection, state, editingProfileId = null) {
   await upsert(connection, 'match_markets', 'match_id market_id name_override display_order back_odds lay_odds', marketLinks,
     'name_override display_order back_odds lay_odds');
   await upsert(connection, 'position_categories', 'id name family', [...categoryRecords.values()], 'name family');
-  const positionFields = 'bet_type entry_odds stake opened_at_label match_id market_id category_id market_name_snapshot match_name_snapshot match_date_snapshot match_time_snapshot closed_at_label exit_odds final_pnl tag target_profit';
+  const positionFields = 'bet_type entry_odds stake opened_at_label match_id market_id category_id market_name_snapshot match_name_snapshot match_date_snapshot match_time_snapshot closed_at_label exit_odds final_pnl tag target_profit comment';
   await upsert(connection, 'positions', `id ${positionFields}`, [...positionRecords.values()], positionFields);
   await deleteMissing(connection, 'positions', [...positionRecords.keys()]);
   await connection.execute(`UPDATE settings SET bankroll=?, elapsed_minutes=?, seconds_left=?, is_running=?,
@@ -376,6 +378,53 @@ async function dailyFixtures(sport) {
   });
 }
 
+const defaultFootballCompetitions = [
+  'English Premier League', 'English League Championship', 'Spanish LALIGA', 'German Bundesliga', 'Italian Serie A',
+];
+
+const footballCompetitionAliases = new Map([
+  ['premier league', 'english premier league'], ['championship', 'english league championship'],
+  ['efl championship', 'english league championship'], ['liga', 'spanish laliga'],
+  ['la liga', 'spanish laliga'], ['laliga', 'spanish laliga'], ['bundesliga', 'german bundesliga'],
+  ['serie a', 'italian serie a'],
+]);
+
+function footballCompetitionKey(name) {
+  const key = name.trim().toLowerCase().replace(/\s+/g, ' ');
+  return footballCompetitionAliases.get(key) ?? key;
+}
+
+async function readFootballCompetitions() {
+  const [[row]] = await pool.query("SELECT state_json FROM profiles WHERE id='main'");
+  const state = typeof row?.state_json === 'string' ? JSON.parse(row.state_json) : row?.state_json;
+  return state?.footballCompetitions ?? defaultFootballCompetitions;
+}
+
+export function startDailyFootballRefresh() {
+  const parisHour = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Paris' });
+  let refreshedDay;
+  let refreshing = false;
+  async function refresh() {
+    const now = new Date();
+    const day = localDateKey(now);
+    const hour = parisHour.formatToParts(now).find((part) => part.type === 'hour').value;
+    if (refreshing || day === refreshedDay || Number(hour) < 10) return;
+    refreshing = true;
+    try {
+      const schedule = await dailyFixtures('football');
+      refreshedDay = schedule.date;
+    } catch (error) {
+      console.error('Calendrier de football indisponible :', error.message);
+    } finally {
+      refreshing = false;
+    }
+  }
+  const timer = setInterval(refresh, 60_000);
+  timer.unref();
+  void refresh();
+  return () => clearInterval(timer);
+}
+
 async function readBody(request) {
   let body = '';
   for await (const chunk of request) {
@@ -396,12 +445,38 @@ export function createApiMiddleware() {
     if (!pathname.startsWith('/api/')) return next?.();
     if (!(await authorize(request, response, pathname))) return;
     try {
-      if (request.method === 'GET' && pathname === '/api/fixtures/today') {
-        const sport = new URL(request.url, 'http://localhost').searchParams.get('sport') ?? 'football';
+      if (pathname === '/api/fixtures/today') {
+        const params = new URL(request.url, 'http://localhost').searchParams;
+        if (params.get('view') === 'competitions' && request.method === 'GET') {
+          const competitions = await readFootballCompetitions();
+          const [[row]] = await pool.execute('SELECT payload FROM daily_fixture_cache WHERE fixture_date=?', [localDateKey()]);
+          const cached = typeof row?.payload === 'string' ? JSON.parse(row.payload) : row?.payload;
+          const available = [...new Set((cached?.fixtures ?? []).map(({ competition }) => competition).filter(Boolean))];
+          return sendJson(response, 200, { competitions, available });
+        }
+        if (params.get('view') === 'competitions' && request.method === 'PUT') {
+          const { competitions } = await readBody(request);
+          if (!Array.isArray(competitions) || competitions.length > 100
+            || competitions.some((name) => typeof name !== 'string' || !name.trim() || name.trim().length > 120)) {
+            return sendJson(response, 400, { error: 'Liste de compétitions invalide.' });
+          }
+          const unique = [...new Map(competitions.map((name) => [footballCompetitionKey(name), name.trim()])).values()];
+          await transaction(true, (connection) => connection.execute(
+            "UPDATE profiles SET state_json=JSON_SET(COALESCE(state_json,JSON_OBJECT()), '$.footballCompetitions', CAST(? AS JSON)) WHERE id='main'",
+            [JSON.stringify(unique)],
+          ));
+          return sendJson(response, 200, { competitions: unique });
+        }
+        if (request.method !== 'GET') return sendJson(response, 405, { error: 'Méthode interdite.' });
+        const sport = params.get('sport') ?? 'football';
         if (sport !== 'football' && sport !== 'basketball') {
           return sendJson(response, 400, { error: 'Sport indisponible dans le calendrier.' });
         }
-        return sendJson(response, 200, await dailyFixtures(sport));
+        if (sport === 'basketball') return sendJson(response, 200, await dailyFixtures(sport));
+        const [schedule, competitions] = await Promise.all([dailyFixtures(sport), readFootballCompetitions()]);
+        const allowed = new Set(competitions.map(footballCompetitionKey));
+        const fixtures = schedule.fixtures.filter(({ competition }) => allowed.has(footballCompetitionKey(competition)));
+        return sendJson(response, 200, { ...schedule, fixtures });
       }
       if (await handleProfiles(request, response, pathname, pool, { getState, saveState })) return;
       if (request.method === 'GET' && pathname === '/api/state') {

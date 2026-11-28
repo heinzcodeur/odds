@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closeDatabase, createApiMiddleware } from './database.js';
+import { closeDatabase, createApiMiddleware, startDailyFootballRefresh } from './database.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const dist = join(root, 'dist');
@@ -35,6 +35,7 @@ const server = createServer((request, response) => {
 
 const port = Number(process.env.PORT ?? 5173);
 server.listen(port, '127.0.0.1', () => {
+  server.once('close', startDailyFootballRefresh());
   console.log(`OddsBoost disponible sur http://localhost:${port}`);
 });
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(async () => { await closeDatabase(); }));

@@ -54,10 +54,11 @@ function MarketQuote({ side, odds, setOdds, positionsToClose = 0, onCashoutAt })
 
 import SportSelect from './SportSelect.jsx';
 
-export default function MatchCard({ participants, onAddParticipant, onManageParticipants, marketCatalog, backOdds, layOdds, setBackOdds, setLayOdds, market, setMarket, markets, selectedMarketId, onSelectMarket, onAddMarket, secondsLeft, isRunning, elapsedMinutes, lastIncrease, teams, matches, currentMatch, selectedMatchId, onSelectMatch, onCreateMatch, onChooseDailyMatch, onSaveMatch, onToggle, onFastForward, onReset, activeBackCount, onCashoutAt }) {
+export default function MatchCard({ configurationOpen, participants, onAddParticipant, onManageParticipants, marketCatalog, backOdds, layOdds, setBackOdds, setLayOdds, market, setMarket, markets, selectedMarketId, onSelectMarket, onAddMarket, secondsLeft, isRunning, elapsedMinutes, lastIncrease, teams, matches, currentMatch, selectedMatchId, onSelectMatch, onCreateMatch, onChooseDailyMatches, onSaveMatch, onToggle, onFastForward, onReset, activeBackCount, onCashoutAt }) {
   const [editingTeams, setEditingTeams] = React.useState(false);
   const [newMatchModalOpen, setNewMatchModalOpen] = React.useState(false);
   const [creatingManualMatch, setCreatingManualMatch] = React.useState(false);
+  const [selectedFixtures, setSelectedFixtures] = React.useState([]);
   const [dailyFixtures, setDailyFixtures] = React.useState([]);
   const [fixtureStatus, setFixtureStatus] = React.useState('idle');
   const [fixtureError, setFixtureError] = React.useState('');
@@ -86,6 +87,7 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
     setDateDraft('');
     setTimeDraft('');
     setFixtureQuery('');
+    setSelectedFixtures([]);
     setFixtureSport(currentMatch?.sport === 'basketball' ? 'basketball' : 'football');
   };
   React.useEffect(() => {
@@ -128,7 +130,9 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
     `${fixture.homeTeam} ${fixture.awayTeam} ${fixture.country} ${fixture.competition}`.toLocaleLowerCase('fr').includes(fixtureQuery.trim().toLocaleLowerCase('fr'))
   );
 
-  return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+  return <>
+    {!configurationOpen && <button type="button" onClick={openNewMatchModal} className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 lg:hidden">+ Nouveau match</button>}
+    <section id="match-configuration" className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden ${configurationOpen ? '' : 'hidden lg:block'}`}>
     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
     {/* Commandes du minuteur temporairement masquées.
       <div className="flex items-center justify-between mb-4"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><Activity className="w-3.5 h-3.5" /> EN DIRECT</span><div className="flex items-center space-x-2">
@@ -148,9 +152,10 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
       <div className="grid grid-cols-2 gap-3"><MarketQuote key={JSON.stringify([selectedMatchId, selectedMarketId])} side="BACK" odds={backOdds} setOdds={setBackOdds} /><MarketQuote side="LAY" odds={layOdds} setOdds={setLayOdds} positionsToClose={activeBackCount} onCashoutAt={onCashoutAt} /></div>
       <p className="mt-2 text-[11px] text-slate-500">La cote Lay peut solder les Back ouverts. Les Lay se ferment automatiquement au gain maximal. Le boost ajoute +0.10 aux deux cotes toutes les 10 minutes.</p></div>
     <span className="sr-only">{formatTimer(secondsLeft)}</span>
+    </section>
     {newMatchModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewMatchModalOpen(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="new-match-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4"><div><h2 id="new-match-title" className="text-lg font-bold text-slate-100">Choisir un match</h2><p className="mt-1 text-xs text-slate-400">Sélectionne un match dans le calendrier ou ajoute-le manuellement.</p></div><button type="button" aria-label="Fermer" onClick={() => setNewMatchModalOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></header>
+        <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4"><div><h2 id="new-match-title" className="text-lg font-bold text-slate-100">Choisir un match</h2><p className="mt-1 text-xs text-slate-400">Sélectionne un ou plusieurs matchs dans le calendrier.</p></div><button type="button" aria-label="Fermer" onClick={() => setNewMatchModalOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></header>
         {creatingManualMatch ? <div className="space-y-4 overflow-y-auto p-5">
           <SportSelect value={sportDraft} placeholder="Choisir un sport" onChange={(sport) => {
             setSportDraft(sport);
@@ -162,8 +167,38 @@ export default function MatchCard({ participants, onAddParticipant, onManagePart
               <option value="football">Football</option>
               <option value="basketball">Basket · NBA</option>
             </select>
-            <input autoFocus aria-label="Rechercher un match" type="search" value={fixtureQuery} onChange={(event) => setFixtureQuery(event.target.value)} placeholder="Rechercher une équipe ou une compétition…" className="min-w-0 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500" /></div><div className="min-h-32 flex-1 overflow-y-auto p-4">{fixtureStatus === 'loading' && <p className="py-8 text-center text-sm text-slate-400">Chargement des matchs du jour…</p>}{fixtureStatus === 'error' && <p role="alert" className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">{fixtureError}</p>}{fixtureStatus === 'ready' && filteredFixtures.length === 0 && <p className="py-8 text-center text-sm text-slate-400">{dailyFixtures.length ? 'Aucun match ne correspond à la recherche.' : emptyCalendarMessage}</p>}<div className="space-y-2">{filteredFixtures.map((fixture) => { const alreadyAdded = matches.some((item) => item.id === fixture.id || (item.sport === fixture.sport && item.homeTeam.trim().toLocaleLowerCase('fr') === fixture.homeTeam.trim().toLocaleLowerCase('fr') && item.awayTeam.trim().toLocaleLowerCase('fr') === fixture.awayTeam.trim().toLocaleLowerCase('fr') && item.matchDate === fixture.matchDate)); return <button type="button" key={fixture.id} onClick={() => { onChooseDailyMatch(fixture); setNewMatchModalOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left transition hover:border-emerald-500/40 hover:bg-slate-800"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-100">{fixture.homeTeam} <span className="text-slate-500">vs</span> {fixture.awayTeam}</span><span className="mt-1 block truncate text-xs text-slate-400">{[fixture.country, fixture.competition].filter(Boolean).join(' · ')} · {formatMatchDate(fixture.matchDate, fixture.matchTime)}</span></span>{alreadyAdded && <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">Déjà ajouté</span>}</button>; })}</div></div><footer className="border-t border-slate-800 p-4"><button type="button" onClick={startManualMatch} className="w-full rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:border-slate-500 hover:bg-slate-800">+ Créer un match manuellement</button></footer></>}
+            <input autoFocus aria-label="Rechercher un match" type="search" value={fixtureQuery} onChange={(event) => setFixtureQuery(event.target.value)} placeholder="Rechercher une équipe ou une compétition…" className="min-w-0 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500" /></div><div className="min-h-32 flex-1 overflow-y-auto p-4">{fixtureStatus === 'loading' && <p className="py-8 text-center text-sm text-slate-400">Chargement des matchs du jour…</p>}{fixtureStatus === 'error' && <p role="alert" className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">{fixtureError}</p>}{fixtureStatus === 'ready' && filteredFixtures.length === 0 && <p className="py-8 text-center text-sm text-slate-400">{dailyFixtures.length ? 'Aucun match ne correspond à la recherche.' : emptyCalendarMessage}</p>}<div className="space-y-2">
+              {filteredFixtures.map((fixture) => {
+                const checked = selectedFixtures.some(({ id }) => id === fixture.id);
+                const alreadyAdded = matches.some((item) => item.id === fixture.id || (
+                  item.sport === fixture.sport && item.matchDate === fixture.matchDate
+                  && item.homeTeam.trim().toLocaleLowerCase('fr') === fixture.homeTeam.trim().toLocaleLowerCase('fr')
+                  && item.awayTeam.trim().toLocaleLowerCase('fr') === fixture.awayTeam.trim().toLocaleLowerCase('fr')
+                ));
+                return <label key={fixture.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3 hover:border-emerald-500/40">
+                  <input type="checkbox" checked={checked} className="shrink-0 accent-emerald-500" onChange={(event) => {
+                    const selected = event.target.checked;
+                    setSelectedFixtures((items) => selected ? [...items, fixture] : items.filter(({ id }) => id !== fixture.id));
+                  }} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-100">{fixture.homeTeam} <span className="text-slate-500">vs</span> {fixture.awayTeam}</span>
+                    <span className="mt-1 block truncate text-xs text-slate-400">{[fixture.country, fixture.competition].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  {alreadyAdded && <span className="text-xs text-emerald-300">Déjà ajouté</span>}
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-200">{fixture.matchTime}</span>
+                </label>;
+              })}
+            </div></div>
+            <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 p-4">
+              <button type="button" onClick={startManualMatch} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100">+ Créer un match manuellement</button>
+              <button type="button" disabled={!selectedFixtures.length} onClick={() => {
+                if (onChooseDailyMatches(selectedFixtures)) setNewMatchModalOpen(false);
+                else setFixtureError('Recharge la page avant d’ajouter les matchs.');
+              }} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                Confirmer la sélection{selectedFixtures.length > 0 && ` (${selectedFixtures.length})`}
+              </button>
+            </footer></>}
       </section>
     </div>}
-  </section>;
+  </>;
 }

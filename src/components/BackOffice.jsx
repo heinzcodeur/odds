@@ -2,12 +2,91 @@ import { marketCategory, presetMarketSport } from '../utils/marketSports.js';
 import ProfileMenu from './ProfileMenu.jsx';
 import { participantsForSport } from '../utils/betTeams.js';
 import { MATCH_SPORTS } from '../utils/betting.js';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Trash2, Pencil, Save, Plus, Database, Users, Calendar, Layers, Settings } from 'lucide-react';
 import { defaultMatchSchedule, formatMatchDate } from '../utils/betting.js';
 import ParticipantSelect from './ParticipantSelect.jsx';
 
 import SportSelect from './SportSelect.jsx';
+
+function FootballCompetitionSettings() {
+  const [saved, setSaved] = useState(null);
+  const [competitions, setCompetitions] = useState([]);
+  const [available, setAvailable] = useState([]);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const endpoint = '/api/fixtures/today?view=competitions';
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(endpoint, { signal: controller.signal }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Liste indisponible.');
+      setSaved(data.competitions);
+      setCompetitions(data.competitions);
+      setAvailable(data.available);
+    }).catch((failure) => {
+      if (!controller.signal.aborted) setError(failure.message);
+    });
+    return () => controller.abort();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitions }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Enregistrement impossible.');
+      setSaved(data.competitions);
+      setCompetitions(data.competitions);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+    <h4 className="text-sm font-semibold text-slate-200">Compétitions de football</h4>
+    <p className="text-xs text-slate-400">Seules ces compétitions sont proposées dans Nouveau match → Football.</p>
+    {saved && <>
+      <ul className="space-y-1">
+        {competitions.map((competition) => <li key={competition} className="flex items-center justify-between gap-2 text-sm text-slate-200">
+          <span>{competition}</span>
+          <button type="button" disabled={saving} aria-label={`Retirer ${competition}`}
+            onClick={() => setCompetitions((items) => items.filter((item) => item !== competition))}
+            className="rounded px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">Retirer</button>
+        </li>)}
+      </ul>
+      {competitions.length === 0 && <p className="text-xs text-slate-400">Aucune compétition sélectionnée.</p>}
+      <form className="flex flex-wrap gap-2" onSubmit={(event) => {
+        event.preventDefault();
+        const competition = name.trim();
+        if (!competition || competitions.some((item) => item.toLowerCase() === competition.toLowerCase())) return;
+        setCompetitions((items) => [...items, competition]);
+        setName('');
+      }}>
+        <input aria-label="Nom de la compétition ESPN" placeholder="Nom de la compétition ESPN" list="espn-competitions"
+          value={name} maxLength={120} onChange={(event) => setName(event.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+        <datalist id="espn-competitions">{available.map((item) => <option key={item} value={item} />)}</datalist>
+        <button type="submit" disabled={saving || !name.trim()} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 disabled:opacity-40">Ajouter</button>
+      </form>
+      <button type="button" onClick={save} disabled={saving || saved === competitions}
+        className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">
+        {saving ? 'Enregistrement…' : 'Enregistrer le filtre'}
+      </button>
+    </>}
+    {!saved && !error && <p className="text-xs text-slate-400">Chargement des compétitions…</p>}
+    {error && <p role="alert" className="text-xs text-rose-300">{error}</p>}
+  </section>;
+}
 
 export default function BackOffice({ profile, profiles, onCreateProfile, onSwitchProfile, matches, onUpdateMatches, marketCatalog, onSaveMarket, initialTab, participants, onAddParticipant, onCreateMatch, getDeletionPlan, onDeleteItem, saveStatus, bankroll, onUpdateBankroll, onClose }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -422,6 +501,7 @@ export default function BackOffice({ profile, profiles, onCreateProfile, onSwitc
                   <p className="mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-bold">Valeur actuelle : {bankroll.toFixed(2)} €</p>
                 </div>
 
+                <FootballCompetitionSettings />
                 <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs text-blue-300">
                   <p>Le back office permet de modifier directement les valeurs en base de données. Toute modification est immédiatement synchronisée.</p>
                 </div>

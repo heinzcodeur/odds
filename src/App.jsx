@@ -55,6 +55,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
   const selectedMarket = markets.find((item) => item.id === selectedMarketId) ?? markets[0] ?? DEFAULT_MARKET;
   const [matches, setMatches] = useState([{ id: 'legacy-match', homeTeam: 'Real Madrid', awayTeam: 'Manchester City', matchDate: '', markets: [DEFAULT_MARKET] }]);
   const [positionsMatchId, setPositionsMatchId] = useState(null);
+  const [matchConfiguration, setMatchConfiguration] = useState('hidden');
   const [selectedMatchId, setSelectedMatchId] = useState('legacy-match');
   const participants = [...new Set([
     ...teamCatalog.map(({ name }) => name),
@@ -378,6 +379,12 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     setBankroll((current) => Number((current + updatedContribution - previousContribution).toFixed(2)));
     setClosedBets((items) => items.map((item) => item.id === bet.id ? updated : item));
   };
+  const savePositionComment = (id, comment) => {
+    if (!loaded || saveConflict.current) return 'Recharge la page avant d’enregistrer le commentaire.';
+    saveImmediately.current = true;
+    setClosedBets((items) => items.map((bet) => bet.id === id ? { ...bet, comment } : bet));
+    return '';
+  };
   const deleteActivePosition = (bet) => setActiveBets((items) => items.filter((item) => item.id !== bet.id));
   const deleteClosedPosition = (bet) => {
     const pnl = Number(bet.finalPnL ?? calculatePnL(bet.type, bet.entryOdds, bet.exitOdds, bet.stake));
@@ -476,11 +483,10 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
   };
 
   const saveCurrentMatch = (changes) => setMatches((items) => items.map((item) => item.id === selectedMatchId ? { ...item, ...changes } : item));
-  const createMatch = (details = {}) => {
-    if (saveConflict.current) return;
+  const buildMatch = (details) => {
     const id = details.sourceEventId ? `fixture-${details.sourceEventId}` : `match-${Date.now()}`;
     const newMarkets = [defaultMarketForSport(details.sport ?? 'football')];
-    const next = {
+    return {
       id,
       homeTeam: details.homeTeam ?? 'Équipe domicile',
       awayTeam: details.awayTeam ?? 'Équipe extérieure',
@@ -489,12 +495,20 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
       sport: details.sport ?? 'football',
       markets: newMarkets,
     };
-    saveImmediately.current = true;
-    setMatches((items) => [next, ...items]);
+  };
+  const activateNewMatch = ({ id, markets: newMarkets }) => {
+    setMatchConfiguration('open');
     setSelectedMatchId(id);
     setMarkets(newMarkets);
     marketsRef.current = newMarkets;
     setSelectedMarketId(newMarkets[0]?.id ?? 'default');
+  };
+  const createMatch = (details = {}) => {
+    if (saveConflict.current) return;
+    const next = buildMatch(details);
+    saveImmediately.current = true;
+    setMatches((items) => [next, ...items]);
+    activateNewMatch(next);
   };
 
   const saveCombinedBet = (draft, id) => {
@@ -576,6 +590,7 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
   const selectMatch = (id, preferredMarketId = selectedMarketId, position) => {
     const nextMatch = matches.find((item) => item.id === id);
     if (!nextMatch) return;
+    setMatchConfiguration('open');
     let nextMarkets = marketsForMatch(nextMatch, [DEFAULT_MARKET]);
     const compatibleMarkets = nextMarkets.filter((item) => marketFitsSport(item.id, nextMatch.sport));
     const nextMarket = compatibleMarkets.find((item) => item.id === preferredMarketId)
@@ -594,13 +609,29 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     setSelectedMarketId(nextMarket.id);
   };
 
-  const chooseDailyMatch = (fixture) => {
-    const existing = matches.find((match) => match.id === fixture.id || (
-      match.matchDate === fixture.matchDate && match.sport === fixture.sport
-      && participantNameKey(match.homeTeam) === participantNameKey(fixture.homeTeam)
-      && participantNameKey(match.awayTeam) === participantNameKey(fixture.awayTeam)));
-    if (existing) selectMatch(existing.id);
-    else createMatch(fixture);
+  const chooseDailyMatches = (fixtures, { activate = true } = {}) => {
+    if (saveConflict.current) return false;
+    const additions = [];
+    const chosen = fixtures.map((fixture) => {
+      const existing = [...matches, ...additions].find((match) => match.id === fixture.id || (
+        match.matchDate === fixture.matchDate && match.sport === fixture.sport
+        && participantNameKey(match.homeTeam) === participantNameKey(fixture.homeTeam)
+        && participantNameKey(match.awayTeam) === participantNameKey(fixture.awayTeam)));
+      if (existing) return existing;
+      const next = buildMatch(fixture);
+      additions.push(next);
+      return next;
+    });
+    if (additions.length) {
+      saveImmediately.current = true;
+      setMatches((items) => [...additions, ...items]);
+    }
+    const [first] = chosen;
+    if (activate && first) {
+      if (additions.includes(first)) activateNewMatch(first);
+      else selectMatch(first.id);
+    }
+    return chosen.map(({ id }) => id);
   };
 
   const resetMatch = () => {
@@ -644,6 +675,11 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
     )}
     <Header onLogout={onLogout} logoutPending={logoutPending} bankroll={availableBankroll} isRunning={isRunning} secondsLeft={secondsLeft} onOpenBackOffice={() => setBackOfficeTab('matches')}
       onOpenHistory={() => setHistoryOpen(true)}
+      onShowActivePositions={() => {
+        const section = document.getElementById('active-positions');
+        section?.focus({ preventScroll: true });
+        section?.scrollIntoView({ block: 'start' });
+      }}
       onShowTodayMatches={() => {
         const section = document.getElementById('today-matches');
         section?.focus({ preventScroll: true });
@@ -651,39 +687,52 @@ export default function App({ onLogout, logoutPending, profile, profiles, onSwit
       }}
     />
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"><p role="status" aria-live="polite" className="mb-3 text-right text-[11px] text-slate-500">{saveStatus}</p><div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <div className="lg:col-span-6 space-y-6">
-        <MatchCard participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={availableMarketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={availableMarkets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatch={chooseDailyMatch} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
-        <CombinedBets matches={matches} catalog={marketCatalog} tickets={combinedBets} onSave={saveCombinedBet} onSettle={settleCombinedBet} />
-        <AutomaticBets markets={footballMarketOptions(marketCatalog, matches)} matches={matches} defaultOdds={entryOdds} defaultStake={stake} onCreate={createAutomaticBets} />
-        <BetForm betType={betType} setBetType={setBetType} entryOdds={entryOdds} cashoutOdds={betType === 'BACK' ? layOdds : backOdds} stake={stake} setStake={setStake} error={betError} notice={betNotice} matchName={`${teams[0]} vs ${teams[1]}`} marketName={market} onPlace={placeBet} />
-      </div>
-      <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-6 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:self-start">
-        <TodayMatches matches={matches} selectedMatchId={positionsMatchId} onSelectMatch={(id) => {
+      <div className="contents lg:sticky lg:top-6 lg:col-span-6 lg:col-start-7 lg:row-start-1 lg:flex lg:max-h-[calc(100dvh_-_3rem)] lg:flex-col lg:gap-6 lg:self-start">
+        <TodayMatches matches={matches} selectedMatchId={positionsMatchId} loaded={loaded}
+          onImport={(fixtures) => chooseDailyMatches(fixtures, { activate: false })} onSelectMatch={(id) => {
           selectMatch(id);
           setPositionsMatchId(id);
+          if (!window.matchMedia('(min-width: 1024px)').matches) {
+            const settings = document.getElementById('selected-match-settings');
+            settings?.focus({ preventScroll: true });
+            settings?.scrollIntoView({ block: 'start' });
+          }
         }} />
-        <ActiveBets filteredMatch={matches.find((match) => match.id === positionsMatchId)}
-          onClearMatchFilter={() => setPositionsMatchId(null)}
-          onSetCashout={(id, cashoutOdds) => {
-          if (saveConflict.current) return false;
-          saveImmediately.current = true;
-          setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, cashoutOdds } : bet));
-          return true;
-        }} onSetTarget={(id, targetProfit) => {
-          if (saveConflict.current) return;
-          saveImmediately.current = true;
-          setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, targetProfit } : bet));
-        }} bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId ?? 'default', bet)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={(positions) => positions.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
-        <button type="button" onClick={() => setHistoryOpen(true)} className="w-full shrink-0 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-slate-200 shadow-xl transition hover:border-emerald-500/40 hover:bg-slate-800/80">
-          <span className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" />Consulter l’historique</span>
-          <span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs text-slate-400">{closedBets.length}</span>
-        </button>
+        <div id="active-positions" tabIndex={-1} className="order-3 flex scroll-mt-32 flex-col gap-6 lg:min-h-0">
+          <ActiveBets filteredMatch={matches.find((match) => match.id === positionsMatchId)}
+            onClearMatchFilter={() => setPositionsMatchId(null)}
+            onSetCashout={(id, cashoutOdds) => {
+            if (saveConflict.current) return false;
+            saveImmediately.current = true;
+            setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, cashoutOdds } : bet));
+            return true;
+          }} onSetTarget={(id, targetProfit) => {
+            if (saveConflict.current) return;
+            saveImmediately.current = true;
+            setActiveBets((bets) => bets.map((bet) => bet.id === id ? { ...bet, targetProfit } : bet));
+          }} bets={activeBets} matches={matches} marketCatalog={marketCatalog} onSelectPosition={(bet) => selectMatch(bet.matchId ?? 'legacy-match', bet.marketId ?? 'default', bet)} getExitOdds={closeOddsFor} onClose={closePosition} onCloseAll={(positions) => positions.forEach((bet) => closePosition(bet))} pnlFor={pnlFor} onEdit={editActivePosition} onDelete={deleteActivePosition} />
+          <button type="button" onClick={() => setHistoryOpen(true)} className="w-full shrink-0 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-left text-sm font-semibold text-slate-200 shadow-xl transition hover:border-emerald-500/40 hover:bg-slate-800/80">
+            <span className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" />Consulter l’historique</span>
+            <span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs text-slate-400">{closedBets.length}</span>
+          </button>
+        </div>
+      </div>
+      <div id="selected-match-settings" tabIndex={-1} className="order-2 space-y-6 scroll-mt-32 lg:col-span-6 lg:col-start-1 lg:row-start-1">
+        {matchConfiguration !== 'hidden' && <button type="button" aria-controls="match-configuration"
+          aria-expanded={matchConfiguration === 'open'} onClick={() => setMatchConfiguration(matchConfiguration === 'open' ? 'collapsed' : 'open')}
+          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-left text-sm font-semibold text-slate-200 lg:hidden">
+          {matchConfiguration === 'open' ? 'Replier le match et ses marchés' : 'Afficher le match et ses marchés'}
+        </button>}
+        <MatchCard configurationOpen={matchConfiguration === 'open'} participants={participants} onAddParticipant={addParticipant} onManageParticipants={() => setBackOfficeTab('teams')} marketCatalog={availableMarketCatalog} backOdds={backOdds} layOdds={layOdds} setBackOdds={setBackOdds} setLayOdds={setLayOdds} market={market} setMarket={setMarket} markets={availableMarkets} selectedMarketId={selectedMarketId} onSelectMarket={setSelectedMarketId} onAddMarket={addMarkets} secondsLeft={secondsLeft} isRunning={isRunning} elapsedMinutes={elapsedMinutes} lastIncrease={lastIncrease} teams={teams} matches={matches} currentMatch={currentMatch} selectedMatchId={selectedMatchId} onSelectMatch={selectMatch} onCreateMatch={createMatch} onChooseDailyMatches={chooseDailyMatches} onSaveMatch={saveCurrentMatch} onToggle={() => setIsRunning((running) => !running)} onFastForward={fastForward} onReset={resetMatch} activeBackCount={activeBets.filter((bet) => bet.type === 'BACK' && (bet.marketId ?? 'default') === selectedMarketId && (bet.matchId ?? 'legacy-match') === selectedMatchId).length} onCashoutAt={cashoutAtMarketQuote} />
+        <CombinedBets matches={matches} catalog={marketCatalog} tickets={combinedBets} onSave={saveCombinedBet} onSettle={settleCombinedBet} />
+        <AutomaticBets markets={footballMarketOptions(marketCatalog, matches)} matches={matches} defaultOdds={entryOdds} defaultStake={stake} onCreate={createAutomaticBets} />
+        <div className={matchConfiguration === 'open' ? undefined : 'hidden lg:block'}><BetForm betType={betType} setBetType={setBetType} entryOdds={entryOdds} cashoutOdds={betType === 'BACK' ? layOdds : backOdds} stake={stake} setStake={setStake} error={betError} notice={betNotice} matchName={`${teams[0]} vs ${teams[1]}`} marketName={market} onPlace={placeBet} /></div>
       </div>
     </div></main>
     {historyOpen && <div className="fixed inset-0 z-50 bg-slate-950">
       <div role="dialog" aria-modal="true" aria-labelledby="history-modal-title" className="h-full w-full overflow-y-auto bg-slate-950 p-4 sm:p-8">
         <div className="sticky top-0 z-10 mb-4 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 pb-3 backdrop-blur"><h2 id="history-modal-title" className="text-lg font-semibold text-slate-100">Historique des positions</h2><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Fermer l’historique" className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></div>
-        <BetHistory bets={closedBets} matches={matches} marketCatalog={marketCatalog} onClear={clearHistory} onEdit={editClosedPosition} onDelete={deleteClosedPosition} onReopen={reopenPosition} />
+        <BetHistory bets={closedBets} matches={matches} marketCatalog={marketCatalog} onClear={clearHistory} onEdit={editClosedPosition} onDelete={deleteClosedPosition} onReopen={reopenPosition} onComment={savePositionComment} />
       </div>
     </div>}
     {backOfficeTab && (

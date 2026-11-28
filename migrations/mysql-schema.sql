@@ -63,6 +63,7 @@ CREATE TABLE positions (
   exit_odds DOUBLE,
   final_pnl DOUBLE,
   target_profit DOUBLE DEFAULT NULL,
+  comment TEXT,
   tag ENUM('prod', 'dry-run') NOT NULL DEFAULT 'prod',
   FOREIGN KEY (match_id, market_id) REFERENCES match_markets(match_id, market_id),
   FOREIGN KEY (category_id) REFERENCES position_categories(id)
