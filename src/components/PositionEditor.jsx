@@ -54,7 +54,14 @@ export default function PositionEditor({ bet, matches, marketCatalog = [], close
     } : {};
     onSave({ type, tag, entryOdds: entry, stake: amount, ...(hasExitQuote ? { exitOdds: exit } : {}), ...matchChange, ...marketChange });
   };
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="position-editor-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+  return <dialog
+    ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
+    onClose={onClose}
+    onKeyDown={(event) => { if (event.key === 'Escape') event.stopPropagation(); }}
+    aria-labelledby="position-editor-title"
+    className="fixed inset-0 m-0 h-[100dvh] max-h-none w-full max-w-none overflow-y-auto bg-slate-950 p-0 text-slate-100"
+  >
+    <section className="mx-auto w-full max-w-2xl p-4 sm:p-8">
     <header className="mb-4 flex items-center justify-between"><h3 id="position-editor-title" className="flex items-center gap-2 text-lg font-bold text-slate-100"><Pencil className="h-4 w-4 text-amber-300" />Modifier la position</h3><button type="button" onClick={onClose} aria-label="Fermer" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800"><X className="h-5 w-5" /></button></header>
     <form onSubmit={save} className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-400">Type<select value={type} onChange={(event) => setType(event.target.value)} className={inputClass}><option value="BACK">Back · Pour</option><option value="LAY">Lay · Contre</option></select></label><label className="text-xs text-slate-400">Marché
       <select value={marketId} onChange={(event) => setMarketId(event.target.value)} className={inputClass}>
@@ -112,5 +119,6 @@ export default function PositionEditor({ bet, matches, marketCatalog = [], close
       )}
       {confirmDelete ? <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">Supprimer définitivement cette position ?<div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Annuler</button><button type="button" onClick={() => onDelete(bet)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">Supprimer</button></div></div> : <footer className="flex justify-between border-t border-slate-800 pt-4"><button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />Supprimer</button><div className="flex gap-2"><button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Annuler</button><button type="submit" disabled={!chosenMatch || !canUseMarket(marketId)} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40">Enregistrer</button></div></footer>}
     </form>
-  </section></div>;
+    </section>
+  </dialog>;
 }

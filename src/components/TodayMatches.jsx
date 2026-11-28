@@ -9,7 +9,6 @@ const parisClock = new Intl.DateTimeFormat('sv-SE', {
 
 export default function TodayMatches({ matches, selectedMatchId, onSelectMatch, loaded, onImport }) {
   const [now, setNow] = useState(Date.now);
-  const [automaticMatches, setAutomaticMatches] = useState(null);
   const latestImport = useRef(onImport);
   useEffect(() => { latestImport.current = onImport; }, [onImport]);
   useEffect(() => {
@@ -34,8 +33,7 @@ export default function TodayMatches({ matches, selectedMatchId, onSelectMatch, 
           throw new Error('Calendrier de football indisponible.');
         }
         if (controller.signal.aborted) return;
-        const ids = latestImport.current(data.fixtures);
-        if (ids) setAutomaticMatches({ date: importDay, ids: new Set(ids) });
+        latestImport.current(data.fixtures);
       } catch {
         if (!controller.signal.aborted) retry = window.setTimeout(loadFootballMatches, 60_000);
       }
@@ -46,12 +44,11 @@ export default function TodayMatches({ matches, selectedMatchId, onSelectMatch, 
       window.clearTimeout(retry);
     };
   }, [importDay]);
-  const cutoff = parisClock.format(now - 2 * 60 * 60 * 1000).replace(' ', 'T');
+  const cutoff = parisClock.format(now - 135 * 60_000).replace(' ', 'T');
   const upcoming = matches
-    .filter(({ id, matchDate, matchTime }) => matchDate === today
+    .filter(({ matchDate, matchTime }) => matchDate === today
       && /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(matchTime)
-      && ((automaticMatches?.date === today && automaticMatches.ids.has(id))
-        || `${matchDate}T${matchTime.length === 5 ? matchTime + ':00' : matchTime}` > cutoff))
+      && `${matchDate}T${matchTime.length === 5 ? matchTime + ':00' : matchTime}` > cutoff)
     .sort((a, b) => a.matchTime.localeCompare(b.matchTime));
 
   return (
