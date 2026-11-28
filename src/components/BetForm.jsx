@@ -33,8 +33,8 @@ export default function BetForm({ betType, setBetType, entryOdds, cashoutOdds, s
     if (result?.ok) setSuccess({ type: betType, matchName, marketName, odds: numericOdds });
   };
 
-  return <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-    <h2 className="text-base font-semibold text-slate-200 mb-4 flex items-center gap-2"><Ticket className="w-5 h-5 text-blue-400" />Ouvrir une Position</h2>
+  return <section aria-labelledby="open-position-title" className="mt-6 border-t border-slate-800 pt-5">
+    <h2 id="open-position-title" className="text-base font-semibold text-slate-200 mb-4 flex items-center gap-2"><Ticket className="w-5 h-5 text-blue-400" />Ouvrir une position</h2>
     <div className="grid grid-cols-2 gap-3 mb-5">
       <button onClick={() => setBetType('BACK')} className={`py-3 px-4 rounded-xl border text-sm font-semibold flex flex-col items-center justify-center transition-all ${betType === 'BACK' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 border-blue-500' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 border-slate-700'}`}><div className="flex items-center gap-2"><ArrowUpRight className="w-4 h-4" /><span>POUR (Back)</span></div><span className="text-[10px] font-normal opacity-80 mt-0.5">Gagne si la cote baisse</span></button>
       <button onClick={() => setBetType('LAY')} className={`py-3 px-4 rounded-xl border text-sm font-semibold flex flex-col items-center justify-center transition-all ${betType === 'LAY' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 border-rose-500' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 border-slate-700'}`}><div className="flex items-center gap-2"><ArrowDownRight className="w-4 h-4" /><span>CONTRE (Lay)</span></div><span className="text-[10px] font-normal opacity-80 mt-0.5">Gagne si la cote monte</span></button>

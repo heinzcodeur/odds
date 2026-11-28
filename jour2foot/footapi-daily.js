@@ -71,7 +71,7 @@ function formatHour(timestamp) {
   }).format(new Date(timestamp * 1000));
 }
 
-export async function fetchTodaySchedule() {
+export async function fetchTodaySchedule(iso = localDateKey()) {
   await loadEnvFile();
   if (process.env.FOOTAPI_ENABLED !== 'true') {
     throw new Error('Récupération FootAPI désactivée pour protéger le quota. Les matchs déjà importés restent disponibles.');
@@ -79,7 +79,6 @@ export async function fetchTodaySchedule() {
   const configuredLimit = Number(process.env.FOOTAPI_MAX_CALLS ?? 10);
   if (!Number.isInteger(configuredLimit) || configuredLimit < 1 || configuredLimit > 100) throw new Error('FOOTAPI_MAX_CALLS doit être compris entre 1 et 100.');
   const budget = { used: 0, limit: configuredLimit, remaining: null };
-  const iso = localDateKey();
   const [year, month, day] = iso.split('-').map(Number);
   const tournaments = new Map();
   const offsetParts = new Intl.DateTimeFormat('en-US', {
@@ -278,19 +277,18 @@ async function loadOrSaveSchedule(iso, sport) {
   if (isBasketball) payload = await fetchNbaSchedule(iso);
   else if (provider === 'espn') payload = await fetchEspnSchedule(iso);
   else if (provider === 'api-football') payload = await fetchApiFootballSchedule(iso);
-  else if (provider === 'footapi7') payload = await fetchTodaySchedule();
+  else if (provider === 'footapi7') payload = await fetchTodaySchedule(iso);
   else throw new Error(`Fournisseur Jour2Foot inconnu : ${provider}.`);
   const { date, events } = payload;
   if (date !== iso) throw new Error('Le jour a changé pendant le chargement du calendrier.');
   await mkdir(outputDirectory, { recursive: true });
   const json = `${JSON.stringify({ date, provider, throughDate: payload.throughDate, events }, null, 2)}\n`;
-  await writeJson(outputPath, json);
+  if (iso === localDateKey()) await writeJson(outputPath, json);
   await writeJson(datedOutputPath, json);
   return payload;
 }
 
-export async function fetchAndSaveToday(sport = 'football') {
-  const date = localDateKey();
+export async function fetchAndSaveToday(sport = 'football', date = localDateKey()) {
   const key = `${sport}:${date}`;
   if (!refreshes.has(key)) {
     refreshes.set(key, loadOrSaveSchedule(date, sport).finally(() => refreshes.delete(key)));

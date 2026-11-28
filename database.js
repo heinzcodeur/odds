@@ -346,7 +346,7 @@ async function saveState(connection, state, editingProfileId = null) {
 }
 
 async function loadDailyFixtures(day, sport) {
-  const schedule = await fetchAndSaveToday(sport);
+  const schedule = await fetchAndSaveToday(sport, day);
   if (schedule.date !== day) throw new Error('Le jour a changé. Rechargez le calendrier.');
   const timeFormat = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const now = Date.now() / 1000;
@@ -357,7 +357,7 @@ async function loadDailyFixtures(day, sport) {
     id: `fixture-${event.id}`, sourceEventId: String(event.id), sport,
     homeTeam: event.homeTeam.name, awayTeam: event.awayTeam.name,
     matchDate: localDateKey(new Date(event.startTimestamp * 1000)),
-    matchTime: timeFormat.format(new Date(event.startTimestamp * 1000)),
+    matchTime: timeFormat.format(new Date(event.startTimestamp * 1000)), startTimestamp: event.startTimestamp,
     country: event.country ?? '', competition: event.tournament?.uniqueTournament?.name ?? event.tournament?.name ?? '',
   }));
   return { date: day, fixtures };
@@ -398,6 +398,25 @@ async function readFootballCompetitions() {
   const [[row]] = await pool.query("SELECT state_json FROM profiles WHERE id='main'");
   const state = typeof row?.state_json === 'string' ? JSON.parse(row.state_json) : row?.state_json;
   return state?.footballCompetitions ?? defaultFootballCompetitions;
+}
+
+export async function footballFixturesForAlert(from, to) {
+  const days = [...new Set([localDateKey(from), localDateKey(to)])];
+  const [competitions, ...schedules] = await Promise.all([
+    readFootballCompetitions(), ...days.map((day) => loadDailyFixtures(day, 'football')),
+  ]);
+  const allowed = new Set(competitions.map(footballCompetitionKey));
+  return schedules.flatMap(({ fixtures }) => fixtures).filter(({ competition, startTimestamp }) =>
+    allowed.has(footballCompetitionKey(competition)) && startTimestamp * 1000 >= from.getTime() && startTimestamp * 1000 <= to.getTime()
+  ).sort((a, b) => a.startTimestamp - b.startTimestamp);
+}
+
+export async function claimFootballAlertSlot(slot) {
+  const [result] = await pool.execute(`UPDATE profiles
+    SET state_json=JSON_SET(COALESCE(state_json, JSON_OBJECT()), '$.lastFootballSmsSlot', ?)
+    WHERE id='main' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(state_json, '$.lastFootballSmsSlot')), '') < ?`,
+  [slot, slot]);
+  return result.affectedRows === 1;
 }
 
 export function startDailyFootballRefresh() {

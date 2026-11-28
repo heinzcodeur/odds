@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "alert:football": "node football-alert.js",
     "start": "node server.js --production"
   },
   "dependencies": {

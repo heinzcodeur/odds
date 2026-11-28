@@ -54,7 +54,7 @@ function MarketQuote({ side, odds, setOdds, positionsToClose = 0, onCashoutAt })
 
 import SportSelect from './SportSelect.jsx';
 
-export default function MatchCard({ configurationOpen, participants, onAddParticipant, onManageParticipants, marketCatalog, backOdds, layOdds, setBackOdds, setLayOdds, market, setMarket, markets, selectedMarketId, onSelectMarket, onAddMarket, secondsLeft, isRunning, elapsedMinutes, lastIncrease, teams, matches, currentMatch, selectedMatchId, onSelectMatch, onCreateMatch, onChooseDailyMatches, onSaveMatch, onToggle, onFastForward, onReset, activeBackCount, onCashoutAt }) {
+export default function MatchCard({ children, configurationOpen, participants, onAddParticipant, onManageParticipants, marketCatalog, backOdds, layOdds, setBackOdds, setLayOdds, market, setMarket, markets, selectedMarketId, onSelectMarket, onAddMarket, secondsLeft, isRunning, elapsedMinutes, lastIncrease, teams, matches, currentMatch, selectedMatchId, onSelectMatch, onCreateMatch, onChooseDailyMatches, onSaveMatch, onToggle, onFastForward, onReset, activeBackCount, onCashoutAt }) {
   const [editingTeams, setEditingTeams] = React.useState(false);
   const [newMatchModalOpen, setNewMatchModalOpen] = React.useState(false);
   const [creatingManualMatch, setCreatingManualMatch] = React.useState(false);
@@ -152,6 +152,7 @@ export default function MatchCard({ configurationOpen, participants, onAddPartic
       <div className="grid grid-cols-2 gap-3"><MarketQuote key={JSON.stringify([selectedMatchId, selectedMarketId])} side="BACK" odds={backOdds} setOdds={setBackOdds} /><MarketQuote side="LAY" odds={layOdds} setOdds={setLayOdds} positionsToClose={activeBackCount} onCashoutAt={onCashoutAt} /></div>
       <p className="mt-2 text-[11px] text-slate-500">La cote Lay peut solder les Back ouverts. Les Lay se ferment automatiquement au gain maximal. Le boost ajoute +0.10 aux deux cotes toutes les 10 minutes.</p></div>
     <span className="sr-only">{formatTimer(secondsLeft)}</span>
+    {children}
     </section>
     {newMatchModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewMatchModalOpen(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="new-match-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
